@@ -223,7 +223,7 @@ dialog .btnrow { justify-content: flex-end; }
 /* ============================================================
    Grundlagen
    ============================================================ */
-const APP_VERSION = '1.6';
+const APP_VERSION = '1.7';
 const KEY = 'finanzen.v1', UIKEY = 'finanzen.ui', ITER = 310000;
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const MON_LONG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -740,7 +740,8 @@ function renderDash() {
     const d = hasPrev && prev > 0 ? (cur - prev) / prev * 100 : null;
     kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Passives Einkommen ' + Y }), h('div', { class: 'v num', text: eur(cur) }),
       h('div', { class: 'd' }, d != null ? deltaSpan(d, sPct(d) + ' ggü. ' + (Y - 1) + (lm < 12 ? ' (Jan–' + MON[lm - 1] + ')' : '')) : 'Dividenden + Zinsen'),
-      cur > 0 ? h('div', { class: 'd', text: 'davon Dividenden ' + pct(div / cur * 100, 0) }) : null));
+      cur > 0 ? h('div', { class: 'd', text: 'davon Dividenden ' + pct(div / cur * 100, 0) }) : null,
+      (pr => pr ? h('div', { class: 'd', text: 'Hochrechnung ' + Y + ': ca. ' + eur(pr.total) }) : null)(pasProjection(Y))));
   }
   {
     const spA = spanOf(k => field(k, 'aus'));
@@ -892,6 +893,19 @@ function divProjection(Y, cur, prev, lm) {
   const rest = sum(data);
   return rest > 0 ? { data, factor, total: sc + rest } : null;
 }
+/* Gleiche Hochrechnung für das passive Einkommen: Dividenden und Zinsen getrennt hochgerechnet, dann addiert */
+function pasProjection(y) {
+  const lm = lastMonthIn(y, passiv);
+  const arr = (yy, f) => MON.map((_, i) => field(mk(yy, i + 1), f));
+  const parts = PAS_PARTS.map(p => ({ p, pr: divProjection(y, arr(y, p.f), arr(y - 1, p.f), lm), have: sum(arr(y, p.f)) }));
+  if (!parts.some(x => x.pr)) return null;
+  const data = MON.map((_, i) => { const v = sum(parts.map(x => x.pr ? x.pr.data[i] : null)); return v > 0 ? round2(v) : null; });
+  const have = sum(MON.map((_, i) => passiv(mk(y, i + 1))));
+  return {
+    data, lm, total: have + sum(data),
+    parts: parts.map(x => ({ name: x.p.name, total: x.pr ? x.pr.total : x.have }))
+  };
+}
 
 /* Woraus sich das passive Einkommen zusammensetzt: Dividenden + Zinsen, je Jahr oder je Monat des gewählten Jahres */
 const PAS_PARTS = [{ f: 'div', name: 'Dividenden', color: 'var(--s1)' }, { f: 'pas', name: 'Zinsen', color: 'var(--s2)' }];
@@ -911,13 +925,31 @@ function compositionCard(root, Y) {
   const val = (g, f) => g.some(k => field(k, f) != null) ? sum(g.map(k => field(k, f))) : null;
   const series = PAS_PARTS.map(p => ({ name: p.name, type: 'bar', stack: 'p', color: p.color, data: groups.map(g => val(g, p.f)) }));
   const tot = groups.map(g => sum(g.map(k => passiv(k) || 0)));
+  // Hochrechnung der fehlenden Monate im laufenden Jahr (wie bei den Dividenden)
+  const projY = mode === 'monat' ? Y : new Date().getFullYear();
+  const proj = pasProjection(projY);
+  let projData = null;
+  if (proj) {
+    if (mode === 'monat') projData = proj.data;
+    else {
+      const idx = labels.indexOf(String(projY));
+      if (idx >= 0) projData = labels.map((_, i) => i === idx ? round2(proj.total - tot[i]) : null);
+    }
+  }
+  if (projData) series.push({ name: 'Hochrechnung', type: 'bar', stack: 'p', color: 'var(--proj)', data: projData });
+  const fmt = mode === 'monat' ? eur2 : eur;
   makeChart(b, {
     title: 'Zusammensetzung passives Einkommen', labels, series, totalLabels: mode === 'jahr',
-    tipFmt: mode === 'monat' ? eur2 : eur,
+    tipFmt: fmt,
     tipTitle: i => mode === 'monat' ? MON_LONG[i] + ' ' + Y : labels[i],
-    tipExtra: i => tot[i] > 0 ? [['Gesamt', (mode === 'monat' ? eur2 : eur)(tot[i])], ...PAS_PARTS.map((p, j) => series[j].data[i] ? ['Anteil ' + p.name, pct(series[j].data[i] / tot[i] * 100, 0)] : null),
-      mode === 'monat' ? noteTip(yks[i]) : null] : []
+    tipExtra: i => [
+      tot[i] > 0 ? ['Gesamt erhalten', fmt(tot[i])] : null,
+      ...PAS_PARTS.map((p, j) => tot[i] > 0 && series[j].data[i] ? ['Anteil ' + p.name, pct(series[j].data[i] / tot[i] * 100, 0)] : null),
+      mode === 'jahr' && projData && projData[i] ? ['Jahr hochgerechnet', 'ca. ' + eur(proj.total)] : null,
+      mode === 'monat' ? noteTip(yks[i]) : null]
   });
+  if (proj && projData) b.append(h('p', { class: 'note' }, 'Hochrechnung ' + projY + ': ', h('b', { text: 'ca. ' + eur(proj.total) }),
+    ' (' + proj.parts.map(x => x.name + ' ca. ' + eur(x.total)).join(', ') + '). Fehlende Monate = Vorjahresmonat × bisheriges Wachstum gegenüber ' + (projY - 1) + ', für Dividenden und Zinsen getrennt.'));
 }
 
 /* Jahresrückblick: eine Zeile je Jahr */
