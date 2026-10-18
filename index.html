@@ -223,14 +223,14 @@ dialog .btnrow { justify-content: flex-end; }
 /* ============================================================
    Grundlagen
    ============================================================ */
-const APP_VERSION = '1.5';
+const APP_VERSION = '1.6';
 const KEY = 'finanzen.v1', UIKEY = 'finanzen.ui', ITER = 310000;
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const MON_LONG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 let S = null;            // aktuelle Daten
-const UI_DEFAULT = { tab: 'dash', entry: 'monat', year: null, month: null, eyear: null, divMode: 'vergleich', cumDiv: 'gesamt', cumPas: 'gesamt', smooth: 'roh', trend: 'lin', trendWin: 'all', savedMode: 'monat', imp: 'monate' };
+const UI_DEFAULT = { tab: 'dash', entry: 'monat', year: null, month: null, eyear: null, divMode: 'vergleich', cumDiv: 'gesamt', cumPas: 'gesamt', smooth: 'roh', trend: 'lin', trendWin: 'all', savedMode: 'monat', compMode: 'jahr', imp: 'monate' };
 let ui = loadUi();
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -390,6 +390,7 @@ function sq(k) {
   if (m.ein > 0 && m.aus != null) return (m.ein - m.aus) / m.ein * 100;
   return null;
 }
+// Passives Einkommen = Dividenden (div) + Zinsen (pas; Feldname stammt von „sonstiges passiv“, nie umbenennen)
 function passiv(k) {
   const m = S.months[k]; if (!m || (m.div == null && m.pas == null)) return null;
   return (m.div || 0) + (m.pas || 0);
@@ -730,13 +731,16 @@ function renderDash() {
   kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Sparquote Ø ' + Y }), h('div', { class: 'v num', text: pct(avgSq) }),
     h('div', { class: 'd' }, avgSq != null ? deltaSpan(avgSq - st.ziel, (avgSq >= st.ziel ? 'über' : 'unter') + ' Ziel ' + pct(st.ziel, 0)) : 'Ziel ' + pct(st.ziel, 0))));
   {
-    const lm = lastMonthIn(Y, k => field(k, 'div'));
-    const cur = sum(Array.from({ length: 12 }, (_, i) => field(mk(Y, i + 1), 'div')));
-    const prev = sum(Array.from({ length: lm }, (_, i) => field(mk(Y - 1, i + 1), 'div')));
-    const hasPrev = Array.from({ length: 12 }, (_, i) => field(mk(Y - 1, i + 1), 'div')).some(v => v != null);
+    // Passives Einkommen (Dividenden + Zinsen) im gewählten Jahr, Vergleich mit gleichem Zeitraum im Vorjahr
+    const lm = lastMonthIn(Y, passiv);
+    const ks = MON.map((_, i) => mk(Y, i + 1)), kp1 = MON.map((_, i) => mk(Y - 1, i + 1));
+    const cur = sum(ks.map(passiv)), div = sum(ks.map(k => field(k, 'div')));
+    const prev = sum(kp1.slice(0, lm).map(passiv));
+    const hasPrev = kp1.some(k => passiv(k) != null);
     const d = hasPrev && prev > 0 ? (cur - prev) / prev * 100 : null;
-    kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Dividenden ' + Y }), h('div', { class: 'v num', text: eur(cur) }),
-      h('div', { class: 'd' }, d != null ? deltaSpan(d, sPct(d) + ' ggü. ' + (Y - 1) + (lm < 12 ? ' (Jan–' + MON[lm - 1] + ')' : '')) : 'Summe netto')));
+    kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Passives Einkommen ' + Y }), h('div', { class: 'v num', text: eur(cur) }),
+      h('div', { class: 'd' }, d != null ? deltaSpan(d, sPct(d) + ' ggü. ' + (Y - 1) + (lm < 12 ? ' (Jan–' + MON[lm - 1] + ')' : '')) : 'Dividenden + Zinsen'),
+      cur > 0 ? h('div', { class: 'd', text: 'davon Dividenden ' + pct(div / cur * 100, 0) }) : null));
   }
   {
     const spA = spanOf(k => field(k, 'aus'));
@@ -866,10 +870,13 @@ function renderDash() {
   cumulativeCard(root, '7 · Dividenden kumuliert', k => field(k, 'div'), 'cumDiv', 'Dividenden');
   cumulativeCard(root, '8 · Passives Einkommen kumuliert', passiv, 'cumPas', 'Passives Einkommen');
 
-  /* 9. Einkommen, Ausgaben, Passiv mit Trend */
+  /* 9. Zusammensetzung passives Einkommen */
+  compositionCard(root, Y);
+
+  /* 10. Einkommen, Ausgaben, Passiv mit Trend */
   overviewCard(root);
 
-  /* 10. Jahresrückblick */
+  /* 11. Jahresrückblick */
   yearReviewCard(root);
 
   root.append(h('p', { class: 'small muted', style: 'text-align:center;margin:8px 0 0', text: 'Werte antippen für Details · Legende antippen blendet Reihen aus' }));
@@ -886,14 +893,41 @@ function divProjection(Y, cur, prev, lm) {
   return rest > 0 ? { data, factor, total: sc + rest } : null;
 }
 
+/* Woraus sich das passive Einkommen zusammensetzt: Dividenden + Zinsen, je Jahr oder je Monat des gewählten Jahres */
+const PAS_PARTS = [{ f: 'div', name: 'Dividenden', color: 'var(--s1)' }, { f: 'pas', name: 'Zinsen', color: 'var(--s2)' }];
+function compositionCard(root, Y) {
+  const mode = ui.compMode;
+  const sp = spanOf(passiv);
+  let sub = 'Dividenden und Zinsen';
+  const yks = MON.map((_, i) => mk(Y, i + 1));
+  const ytot = sum(yks.map(passiv));
+  if (ytot > 0) sub = Y + ': ' + PAS_PARTS.map(p => p.name + ' ' + eur(sum(yks.map(k => field(k, p.f)))) + ' (' + pct(sum(yks.map(k => field(k, p.f))) / ytot * 100, 0) + ')').join(' · ');
+  const b = card(root, '9 · Zusammensetzung passives Einkommen', sub, [seg([['jahr', 'Pro Jahr'], ['monat', 'Pro Monat ' + Y]], mode, v => setUi('compMode', v))]);
+  if (!sp) return noData(b);
+  const groups = mode === 'monat'
+    ? yks.map(k => [k])
+    : (() => { const out = []; for (let y = kYear(sp[0]); y <= kYear(sp[1]); y++) out.push(MON.map((_, i) => mk(y, i + 1))); return out; })();
+  const labels = mode === 'monat' ? MON : groups.map(g => String(kYear(g[0])));
+  const val = (g, f) => g.some(k => field(k, f) != null) ? sum(g.map(k => field(k, f))) : null;
+  const series = PAS_PARTS.map(p => ({ name: p.name, type: 'bar', stack: 'p', color: p.color, data: groups.map(g => val(g, p.f)) }));
+  const tot = groups.map(g => sum(g.map(k => passiv(k) || 0)));
+  makeChart(b, {
+    title: 'Zusammensetzung passives Einkommen', labels, series, totalLabels: mode === 'jahr',
+    tipFmt: mode === 'monat' ? eur2 : eur,
+    tipTitle: i => mode === 'monat' ? MON_LONG[i] + ' ' + Y : labels[i],
+    tipExtra: i => tot[i] > 0 ? [['Gesamt', (mode === 'monat' ? eur2 : eur)(tot[i])], ...PAS_PARTS.map((p, j) => series[j].data[i] ? ['Anteil ' + p.name, pct(series[j].data[i] / tot[i] * 100, 0)] : null),
+      mode === 'monat' ? noteTip(yks[i]) : null] : []
+  });
+}
+
 /* Jahresrückblick: eine Zeile je Jahr */
 function yearReviewCard(root) {
   const ys = [...new Set([...yearsWithMonths(), ...Object.keys(S.years).map(Number)])].sort((a, b) => b - a);
-  const b = card(root, '10 · Jahresrückblick', 'Alle Jahre auf einen Blick · laufendes Jahr bis zum letzten erfassten Monat');
+  const b = card(root, '11 · Jahresrückblick', 'Alle Jahre auf einen Blick · laufendes Jahr bis zum letzten erfassten Monat');
   if (!ys.length) return noData(b);
   const dr = Object.fromEntries(depotRows().map(r => [r.y, r.pc]));
   const own = y => S.years[y]?.w?.[0] ?? null;
-  const cols = ['Jahr', 'Einkommen', 'Ausgaben', 'Gespart', 'Ø Sparquote', 'Dividenden', 'Passiv gesamt', 'Vermögen ' + S.settings.names[0], 'Zuwachs', 'Depot-Rendite'];
+  const cols = ['Jahr', 'Einkommen', 'Ausgaben', 'Gespart', 'Ø Sparquote', 'Dividenden', 'Zinsen', 'Passiv gesamt', 'Vermögen ' + S.settings.names[0], 'Zuwachs', 'Depot-Rendite'];
   const nowY = new Date().getFullYear();
   const tb = h('tbody');
   ys.forEach(y => {
@@ -906,7 +940,7 @@ function yearReviewCard(root) {
     const cells = [
       y === nowY && lm && lm < 12 ? y + ' (bis ' + MON[lm - 1] + ')' : String(y),
       eur(tot(k => field(k, 'ein'))), eur(tot(k => field(k, 'aus'))), eur(tot(gespart)), pct(mean(sqs)),
-      eur(tot(k => field(k, 'div'))), eur(tot(passiv)), eur(w), w != null && wp != null ? sEur(w - wp) : '–', dr[y] != null ? sPct(dr[y]) : '–'
+      eur(tot(k => field(k, 'div'))), eur(tot(k => field(k, 'pas'))), eur(tot(passiv)), eur(w), w != null && wp != null ? sEur(w - wp) : '–', dr[y] != null ? sPct(dr[y]) : '–'
     ];
     tb.append(h('tr', { class: y === nowY ? 'cur' : '' }, cells.map(c => h('td', { text: c }))));
   });
@@ -978,7 +1012,7 @@ function overviewCard(root) {
   const ctrls = [seg([['lin', 'Linear'], ['exp', 'Exponentiell']], ui.trend, v => setUi('trend', v)), seg([['roh', 'Monat'], ['glatt', '12-M-Ø']], ui.smooth, v => setUi('smooth', v)),
     h('div', { class: 'ctrls', style: 'align-items:center' }, h('span', { class: 'small muted', text: 'Trend aus' }),
       seg([['all', 'allen Jahren'], ['36', '3 J.'], ['24', '2 J.']], ui.trendWin, v => setUi('trendWin', v)))];
-  if (ks0.length < 3) { const b = card(root, '9 · Einkommen, Ausgaben & passives Einkommen', 'Ab drei Monaten mit Daten erscheint hier der Trend.', ctrls); return noData(b); }
+  if (ks0.length < 3) { const b = card(root, '10 · Einkommen, Ausgaben & passives Einkommen', 'Ab drei Monaten mit Daten erscheint hier der Trend.', ctrls); return noData(b); }
   const t0 = kIdx(ks0[0]), t1 = kIdx(ks0[ks0.length - 1]), n = t1 - t0 + 1;
   const keys = Array.from({ length: n }, (_, i) => iKey(t0 + i));
   const ein = keys.map(k => field(k, 'ein')), aus = keys.map(k => field(k, 'aus'));
@@ -1011,7 +1045,7 @@ function overviewCard(root) {
   else if (cross != null && cross <= n - 1) sub = 'Laut Trend deckt dein passives Einkommen die Ausgaben bereits.';
   else if (cross != null) sub = 'Laut ' + (fp.kind === 'exp' ? 'exponentiellem' : 'linearem') + ' Trend deckt dein passives Einkommen die Ausgaben ab etwa ' + MON_LONG[kMon(allKeys[cross]) - 1] + ' ' + kYear(allKeys[cross]) + '.';
   else sub = 'Beim aktuellen Trend wird die Deckung in den nächsten 40 Jahren nicht erreicht.';
-  const b = card(root, '9 · Einkommen, Ausgaben & passives Einkommen', sub, ctrls);
+  const b = card(root, '10 · Einkommen, Ausgaben & passives Einkommen', sub, ctrls);
   const series = [
     { name: 'Einkommen', type: 'line', color: 'var(--s1)', data: pad(disp(ein)) },
     { name: 'Ausgaben', type: 'line', color: 'var(--s2)', data: pad(disp(aus)) },
@@ -1090,15 +1124,15 @@ function renderMonthForm(root) {
     numField('ein', 'Einkommen (netto)', '€', m.ein),
     numField('aus', 'Ausgaben', '€', m.aus),
     numField('div', 'Dividenden (netto)', '€', m.div),
-    numField('pas', 'Sonstiges passives Einkommen', '€', m.pas, 'Zinsen, Mieteinnahmen usw. – zählt mit Dividenden zum passiven Einkommen'),
+    numField('pas', 'Zinsen', '€', m.pas, 'Tagesgeld, Festgeld, Anleihen – zählt mit Dividenden zum passiven Einkommen'),
     numField('sq', 'Sparquote manuell', '%', m.sq, 'Leer lassen = automatisch: (Einkommen − Ausgaben) ÷ Einkommen'),
     h('div', { class: 'field wide' }, h('label', { for: 'note', text: 'Notiz' }),
       h('input', { class: 'inp', id: 'note', type: 'text', maxlength: String(NOTE_MAX), value: m.note || '', placeholder: 'z. B. Urlaub, Auto-Reparatur, Bonus', autocomplete: 'off', enterkeyhint: 'done' }),
       h('div', { class: 'hint', text: 'Erscheint beim Antippen im Diagramm' })));
-  // „Wie Vormonat“: Einkommen und sonstiges passives Einkommen übernehmen
+  // „Wie Vormonat“: Einkommen und Zinsen übernehmen
   const pm = S.months[kAdd(key, -1)];
   if (pm && (pm.ein != null || pm.pas != null)) {
-    form.querySelector('.stepper').after(h('button', { class: 'btn ghost small', type: 'button', style: 'margin:2px 0 4px;padding:7px 12px', text: '↺ Wie Vormonat (Einkommen, Sonstiges passiv)', onclick: () => {
+    form.querySelector('.stepper').after(h('button', { class: 'btn ghost small', type: 'button', style: 'margin:2px 0 4px;padding:7px 12px', text: '↺ Wie Vormonat (Einkommen, Zinsen)', onclick: () => {
       if (pm.ein != null) $('#ein', form).value = inVal(pm.ein);
       if (pm.pas != null) $('#pas', form).value = inVal(pm.pas);
       upd(); toast('Werte von ' + kLabel(kAdd(key, -1)) + ' übernommen – noch speichern');
@@ -1150,7 +1184,7 @@ function renderMonthForm(root) {
     tb.append(tr);
   }
   root.append(h('section', { class: 'card' }, h('h3', { text: 'Übersicht ' + Y, style: 'margin-bottom:6px' }),
-    h('div', { class: 'tscroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Monat', 'Eink.', 'Ausg.', 'Div.', 'Sonst.', 'SQ %'].map(t => h('th', { text: t })))), tb)),
+    h('div', { class: 'tscroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Monat', 'Eink.', 'Ausg.', 'Div.', 'Zinsen', 'SQ %'].map(t => h('th', { text: t })))), tb)),
     h('p', { class: 'note', text: 'Zeile antippen zum Bearbeiten.' })));
 }
 function renderYearForm(root) {
@@ -1228,7 +1262,7 @@ function splitRows(text) {
 function renderImport(root) {
   const isM = ui.imp !== 'jahre';
   const names = S.settings.names;
-  const cols = isM ? ['Monat', 'Einkommen', 'Ausgaben', 'Dividenden', 'Sonstiges passiv', 'Sparquote % (optional)']
+  const cols = isM ? ['Monat', 'Einkommen', 'Ausgaben', 'Dividenden', 'Zinsen', 'Sparquote % (optional)']
     : ['Jahr', ...names, 'Depotwert', 'Einzahlungen', 'Performance % (optional)'];
   const ex = isM ? 'Jan 2024\t5.400\t3.380,50\t87,12\t12\n02.2024\t5.400\t3.120\t41,80\t12' : '2021\t70000\t3000\t2000\t30000\t\t\n2022\t79500\t3900\t2600\t33600\t9000\t';
   const ta = h('textarea', { class: 'inp', placeholder: ex, spellcheck: 'false', autocapitalize: 'off' });
