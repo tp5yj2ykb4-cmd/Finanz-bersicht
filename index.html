@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Finanzen">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>Finanzen</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f3ef; --card: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10);
+  --accent: #2a78d6; --accent-ink: #fff; --good: #006300; --bad: #c62f2f; --warnbg: #fff4d6;
+  --prev: #a3a29b; --neg: #e34948;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0d0d0d; --card: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10);
+    --accent: #3987e5; --good: #0ca30c; --bad: #e66767; --warnbg: #3a2f12;
+    --prev: #6e6d67; --neg: #e66767;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font); -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+h1, h2, h3 { margin: 0; line-height: 1.25; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; font-weight: 650; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Kopf und Tabs */
+header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(var(--safe-t) + 10px) 16px 8px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); }
+header.top h1 { font-size: 22px; flex: 1; }
+.iconbtn { border: 0; background: transparent; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; cursor: pointer; color: var(--ink2); }
+.iconbtn:active { background: var(--border); }
+main { max-width: 760px; margin: 0 auto; padding: 12px 16px calc(84px + var(--safe-b)); }
+nav.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; background: var(--card); border-top: 1px solid var(--border); padding-bottom: var(--safe-b); }
+nav.tabbar button { flex: 1; border: 0; background: none; padding: 8px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--muted); cursor: pointer; }
+nav.tabbar button[aria-current="page"] { color: var(--accent); }
+nav.tabbar svg { width: 24px; height: 24px; }
+
+/* Karten */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.chead { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.chead .sub { color: var(--ink2); font-size: 13px; margin-top: 2px; }
+.ctrls { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 2px; }
+.seg button { border: 0; background: none; padding: 5px 11px; border-radius: 7px; font-size: 13px; color: var(--ink2); cursor: pointer; }
+.seg button.on { background: var(--card); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips button { flex: none; border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: 5px 13px; font-size: 14px; cursor: pointer; }
+.chips button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.yearbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.yearbar span { font-size: 13px; color: var(--ink2); flex: none; }
+
+/* Kennzahlen */
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.kpi { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px; min-width: 0; }
+.kpi .l { font-size: 12px; color: var(--ink2); }
+.kpi .v { font-size: 22px; font-weight: 650; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .d { font-size: 12px; color: var(--ink2); }
+.up { color: var(--good); }
+.down { color: var(--bad); }
+
+/* Diagramme */
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 4px; }
+.legend button { border: 0; background: none; padding: 3px 0; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink2); cursor: pointer; }
+.legend button.off { opacity: .4; text-decoration: line-through; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--c); }
+.sw.ln { height: 0; width: 16px; border-radius: 0; border-top: 2.5px solid var(--c); background: none; }
+.sw.ln.dash { border-top-style: dashed; }
+.plot { position: relative; width: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.plot svg { display: block; overflow: visible; }
+.tip { position: absolute; z-index: 5; pointer-events: none; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.16); padding: 8px 10px; font-size: 12.5px; min-width: 130px; max-width: 230px; }
+.tip b { display: block; margin-bottom: 4px; font-size: 13px; }
+.tip .r { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tip .r .n { flex: 1; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; }
+.tip .r .x { font-variant-numeric: tabular-nums; font-weight: 600; }
+.nodata { color: var(--muted); font-size: 14px; padding: 24px 0; text-align: center; }
+.note { color: var(--ink2); font-size: 13px; margin-top: 8px; }
+details.tbl { margin-top: 6px; }
+details.tbl summary { font-size: 13px; color: var(--muted); cursor: pointer; padding: 4px 0; }
+.tscroll { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 6px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink2); font-weight: 600; position: sticky; top: 0; background: var(--card); }
+tr.sel td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+tr.click { cursor: pointer; }
+
+/* Formulare */
+.field { display: grid; grid-template-columns: 1fr 150px; align-items: center; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--grid); }
+.field:last-of-type { border-bottom: 0; }
+.field label { font-size: 15px; }
+.field .hint { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.inwrap { position: relative; }
+.inwrap .unit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 15px; pointer-events: none; }
+input.inp, select.inp, textarea.inp { width: 100%; font: 16px var(--font); color: var(--ink); background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 9px 10px; }
+.inwrap input.inp { text-align: right; padding-right: 28px; font-variant-numeric: tabular-nums; }
+input.inp:focus, select.inp:focus, textarea.inp:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+input.inp.bad { outline: 2px solid var(--bad); }
+textarea.inp { min-height: 150px; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+.stepper { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.stepper .lbl { flex: 1; text-align: center; font-size: 18px; font-weight: 650; }
+.stepper input[type=month] { flex: 1; text-align: center; font-weight: 600; }
+.calc { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink2); padding: 8px 0 2px; }
+.calc b { color: var(--ink); }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.btn { border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 600; border-radius: 10px; padding: 11px 16px; cursor: pointer; font-size: 15px; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+.btn.danger { background: var(--bad); color: #fff; }
+.btn.ghost.danger { background: transparent; color: var(--bad); }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: .45; }
+.btn:active { filter: brightness(.92); }
+.banner { background: var(--warnbg); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center; font-size: 14px; }
+.banner p { flex: 1; }
+.banner .btn { padding: 8px 12px; font-size: 14px; flex: none; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.stack > * + * { margin-top: 10px; }
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
+.kv:last-child { border-bottom: 0; }
+ul.plain { margin: 6px 0 0; padding-left: 18px; color: var(--ink2); font-size: 13px; }
+
+/* Start, Sperre, Abdeckung */
+.screen { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: calc(var(--safe-t) + 24px) 20px calc(var(--safe-b) + 24px); }
+.screen .box { width: 100%; max-width: 380px; }
+.screen .logo { width: 72px; height: 72px; border-radius: 18px; display: block; margin: 0 auto 14px; }
+.screen h2 { text-align: center; margin-bottom: 8px; }
+.screen p.lead { text-align: center; color: var(--ink2); margin-bottom: 18px; font-size: 14px; }
+.screen form > * + * { margin-top: 10px; }
+.err { color: var(--bad); font-size: 13px; min-height: 18px; }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 8px; font-size: 14px; display: block; margin: 6px auto 0; }
+#cover { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: none; align-items: center; justify-content: center; }
+body.covered #cover { display: flex; }
+dialog { border: 1px solid var(--border); border-radius: 16px; background: var(--card); color: var(--ink); padding: 18px; width: min(92vw, 380px); }
+dialog::backdrop { background: rgba(0,0,0,.4); }
+dialog h3 { margin-bottom: 8px; }
+dialog p { color: var(--ink2); font-size: 14px; margin-bottom: 10px; white-space: pre-line; }
+dialog input { margin-bottom: 8px; }
+dialog .btnrow { justify-content: flex-end; }
+#toast { position: fixed; left: 50%; bottom: calc(80px + var(--safe-b)); transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s; background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 999px; font-size: 14px; z-index: 300; pointer-events: none; max-width: 90vw; text-align: center; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (min-width: 700px) { .kpis { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 360px) { .field { grid-template-columns: 1fr 120px; } }
+</style>
+</head>
+<body>
+
+<!-- Nur für Daten aus Version 1.0, die noch mit Passwort gespeichert wurden: einmal öffnen, danach ohne Passwort -->
+<div id="lock" class="screen" hidden>
+  <div class="box">
+    <img class="logo" src="icon.png" alt="">
+    <h2>Einmal entsperren</h2>
+    <p class="lead">Die Passwort-Funktion wurde entfernt. Gib dein bisheriges Passwort ein letztes Mal ein – danach öffnet sich die App ohne Passwort.</p>
+    <form id="lockForm" autocomplete="on">
+      <input type="text" name="username" value="Finanzen" autocomplete="username" hidden>
+      <input class="inp" id="lockPw" type="password" placeholder="Bisheriges Passwort" autocomplete="current-password">
+      <p class="err" id="lockErr"></p>
+      <button class="btn wide" type="submit" id="lockBtn">Entsperren</button>
+    </form>
+    <button class="linkbtn" id="lockForgot" type="button">Passwort vergessen?</button>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header class="top">
+    <h1 id="title">Übersicht</h1>
+  </header>
+  <main>
+    <section id="tab-dash"></section>
+    <section id="tab-entry" hidden></section>
+    <section id="tab-set" hidden></section>
+  </main>
+  <nav class="tabbar">
+    <button type="button" data-tab="dash" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Übersicht</button>
+    <button type="button" data-tab="entry">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Erfassen</button>
+    <button type="button" data-tab="set">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Einstellungen</button>
+  </nav>
+</div>
+
+<div id="cover"><img class="logo" src="icon.png" alt="" style="width:72px;height:72px;border-radius:18px"></div>
+<dialog id="dlg"></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+
+<script>
+'use strict';
+/* ============================================================
+   Grundlagen
+   ============================================================ */
+const APP_VERSION = '1.2';
+const KEY = 'finanzen.v1', UIKEY = 'finanzen.ui', ITER = 310000;
+const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+const MON_LONG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+let S = null;            // aktuelle Daten
+const UI_DEFAULT = { tab: 'dash', entry: 'monat', year: null, month: null, eyear: null, divMode: 'vergleich', cumDiv: 'gesamt', cumPas: 'gesamt', smooth: 'roh', trend: 'lin', imp: 'monate' };
+let ui = loadUi();
+
+const $ = (sel, root = document) => root.querySelector(sel);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  if (props) for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k === 'style') e.style.cssText = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids.flat()) {
+    if (k == null || k === false) continue;
+    e.append(k.nodeType ? k : document.createTextNode(String(k)));
+  }
+  return e;
+}
+function sv(tag, attrs) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v != null) e.setAttribute(k, v);
+  return e;
+}
+function loadUi() {
+  try { return Object.assign({}, UI_DEFAULT, JSON.parse(localStorage.getItem(UIKEY) || '{}')); }
+  catch (e) { return Object.assign({}, UI_DEFAULT); }
+}
+function saveUi() { try { localStorage.setItem(UIKEY, JSON.stringify(ui)); } catch (e) {} }
+
+/* Zahlen */
+const NF0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+const NF1 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const NF2 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eur = v => v == null || !isFinite(v) ? '–' : NF0.format(Math.round(v)) + ' €';
+const eur2 = v => v == null || !isFinite(v) ? '–' : NF2.format(v) + ' €';
+const pct = (v, d = 1) => v == null || !isFinite(v) ? '–' : (d ? NF1 : NF0).format(v) + ' %';
+const sign = v => v > 0 ? '+' : '';
+const sEur = v => v == null ? '–' : sign(v) + eur(v);
+const sPct = v => v == null || !isFinite(v) ? '–' : sign(v) + pct(v);
+function compact(v) {
+  const a = Math.abs(v);
+  if (a >= 1e6) return NF1.format(v / 1e6).replace(/,0$/, '') + ' Mio';
+  if (a >= 1e4) return NF0.format(v / 1e3) + ' T';
+  if (a >= 1e3) return NF1.format(v / 1e3).replace(/,0$/, '') + ' T';
+  return NF0.format(v);
+}
+const pctAxis = v => NF0.format(v) + ' %';
+function parseNum(str) {
+  if (str == null) return null;
+  let t = String(str).trim().replace(/[€%\s ]/g, '').replace(/−/g, '-');
+  if (t === '' || t === '-' || t === '–') return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  const v = Number(t);
+  return isFinite(v) ? v : NaN;
+}
+function inVal(v) {
+  if (v == null) return '';
+  return Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',');
+}
+const round2 = v => Math.round(v * 100) / 100;
+const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const sum = a => a.reduce((x, y) => x + (y || 0), 0);
+
+/* Monate */
+const mk = (y, m) => y + '-' + String(m).padStart(2, '0');
+const kIdx = k => { const [y, m] = k.split('-').map(Number); return y * 12 + m - 1; };
+const iKey = t => mk(Math.floor(t / 12), t % 12 + 1);
+const kAdd = (k, n) => iKey(kIdx(k) + n);
+const kYear = k => +k.slice(0, 4);
+const kMon = k => +k.slice(5, 7);
+const kLabel = k => MON[kMon(k) - 1] + ' ' + kYear(k);
+function nowKey() { const d = new Date(); return mk(d.getFullYear(), d.getMonth() + 1); }
+
+/* ============================================================
+   Nur noch Lesen alter verschlüsselter Daten aus Version 1.0
+   (AES-GCM 256, Schlüssel per PBKDF2-SHA256)
+   ============================================================ */
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(pw, salt, iter = ITER) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, base,
+    { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+}
+async function unseal(env, key) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(env.iv) }, key, unb64(env.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+/* ============================================================
+   Datenhaltung
+   ============================================================ */
+// Vermögen wird für 3 Personen geführt: Ehepaar zusammen, Kind 1, Kind 2.
+// Datenstand v1 hatte 4 Personen (Ich, Frau getrennt) – migrate() fasst die ersten beiden zusammen.
+const NP = 3, PIDX = [0, 1, 2];
+function emptyState() {
+  return { v: 2, settings: { names: ['Wir', 'Kind 1', 'Kind 2'], ziel: 30, lastBackup: null, lastChange: null }, months: {}, years: {} };
+}
+function migrate(d) {
+  const e = emptyState();
+  if (!d || typeof d !== 'object') return e;
+  const old = !(d.v >= 2);
+  const numOrNull = v => (typeof v === 'number' && isFinite(v)) ? v : null;
+  const st = Object.assign({}, e.settings, d.settings || {});
+  delete st.lockMin;
+  if (old && Array.isArray(st.names) && st.names.length === 4) {
+    const [a, b] = st.names;
+    const pair = a === 'Ich' && b === 'Frau' ? 'Wir' : [a, b].filter(Boolean).join(' & ');
+    st.names = [pair, st.names[2], st.names[3]];
+  }
+  if (!Array.isArray(st.names) || st.names.length !== NP) st.names = e.settings.names;
+  st.names = st.names.map((n, i) => String(n || e.settings.names[i]).slice(0, 30));
+  const pairSum = (x, y) => x == null && y == null ? null : (x || 0) + (y || 0);
+  const wOf = r => {
+    if (!Array.isArray(r.w)) return PIDX.map(() => null);
+    const w = r.w.map(numOrNull);
+    return old ? [pairSum(w[0], w[1]), w[2] ?? null, w[3] ?? null] : PIDX.map(i => w[i] ?? null);
+  };
+  const months = {}, years = {};
+  for (const [k, m] of Object.entries(d.months || {})) {
+    if (!/^\d{4}-\d{2}$/.test(k) || !m) continue;
+    const o = {};
+    for (const f of ['ein', 'aus', 'div', 'pas', 'sq']) { const v = numOrNull(m[f]); if (v != null) o[f] = v; }
+    if (Object.keys(o).length) months[k] = o;
+  }
+  for (const [y, r] of Object.entries(d.years || {})) {
+    if (!/^\d{4}$/.test(y) || !r) continue;
+    const o = {};
+    const w = wOf(r);
+    if (w.some(v => v != null)) o.w = w;
+    for (const f of ['depot', 'einz', 'perf']) { const v = numOrNull(r[f]); if (v != null) o[f] = v; }
+    if (Object.keys(o).length) years[y] = o;
+  }
+  return { v: 2, settings: st, months, years };
+}
+function readEnvelope() {
+  try { const t = localStorage.getItem(KEY); return t ? JSON.parse(t) : null; } catch (e) { return null; }
+}
+const envelope = () => ({ fmt: 'finanzen', v: 1, enc: false, data: S });
+function persist(changed = true) {
+  if (!S) return;
+  if (changed) S.settings.lastChange = Date.now();
+  try { localStorage.setItem(KEY, JSON.stringify(envelope())); }
+  catch (e) { toast('Speichern fehlgeschlagen – Speicher voll?'); }
+}
+const isEmpty = () => !Object.keys(S.months).length && !Object.keys(S.years).length;
+
+/* Abgeleitete Werte */
+function sq(k) {
+  const m = S.months[k]; if (!m) return null;
+  if (m.sq != null) return m.sq;
+  if (m.ein > 0 && m.aus != null) return (m.ein - m.aus) / m.ein * 100;
+  return null;
+}
+function passiv(k) {
+  const m = S.months[k]; if (!m || (m.div == null && m.pas == null)) return null;
+  return (m.div || 0) + (m.pas || 0);
+}
+const field = (k, f) => S.months[k] ? (S.months[k][f] ?? null) : null;
+const monthKeys = () => Object.keys(S.months).sort();
+function spanOf(getter) {
+  const ks = monthKeys().filter(k => getter(k) != null);
+  return ks.length ? [ks[0], ks[ks.length - 1]] : null;
+}
+function keyRange(a, b) { const out = []; for (let t = kIdx(a); t <= kIdx(b); t++) out.push(iKey(t)); return out; }
+const yearsWithMonths = () => [...new Set(monthKeys().map(kYear))].sort((a, b) => a - b);
+function lastMonthIn(y, getter) { for (let m = 12; m >= 1; m--) if (getter(mk(y, m)) != null) return m; return 0; }
+function depotRows() {
+  return Object.keys(S.years).map(Number).sort((a, b) => a - b).map(y => {
+    const c = S.years[y] || {}, p = S.years[y - 1] || {};
+    let gain = null, pc = null;
+    const e = c.einz || 0;
+    if (c.depot != null && p.depot != null) {
+      gain = c.depot - p.depot - e;
+      const base = p.depot + e / 2;
+      pc = base > 0 ? gain / base * 100 : null;
+    }
+    if (c.perf != null) {
+      pc = c.perf;
+      if (p.depot != null) gain = c.perf / 100 * (p.depot + e / 2);
+    }
+    return { y, pc, gain, depot: c.depot ?? null, einz: c.einz ?? null };
+  }).filter(r => r.pc != null);
+}
+const wealthTotal = y => { const w = S.years[y]?.w; return w && w.some(v => v != null) ? sum(w) : null; };
+
+/* ============================================================
+   Diagramm-Baukasten (SVG, ohne Bibliothek)
+   ============================================================ */
+const charts = new Set();
+function niceTicks(lo, hi, count = 5) {
+  const span = hi - lo || 1, raw = span / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  const step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+  const start = Math.floor(lo / step + 1e-9) * step, end = Math.ceil(hi / step - 1e-9) * step;
+  const t = []; for (let v = start; v <= end + step / 2; v += step) t.push(Math.round(v / step) * step);
+  return t;
+}
+function barPath(x, w, yTop, yBot, rt, rb) {
+  const hh = yBot - yTop; if (hh <= 0 || w <= 0) return null;
+  rt = Math.min(rt, w / 2, hh); rb = Math.min(rb, w / 2, hh - rt);
+  return `M${x},${yTop + rt}A${rt},${rt} 0 0 1 ${x + rt},${yTop}L${x + w - rt},${yTop}A${rt},${rt} 0 0 1 ${x + w},${yTop + rt}` +
+    `L${x + w},${yBot - rb}A${rb},${rb} 0 0 1 ${x + w - rb},${yBot}L${x + rb},${yBot}A${rb},${rb} 0 0 1 ${x},${yBot - rb}Z`;
+}
+function makeChart(container, cfg) {
+  const legendItems = cfg.series.filter(s => s.legend !== false);
+  if (legendItems.length > 1) {
+    const lg = h('div', { class: 'legend' });
+    legendItems.forEach(s => {
+      const b = h('button', { type: 'button', class: s.hidden ? 'off' : '', 'aria-pressed': String(!s.hidden) },
+        h('span', { class: 'sw ' + (s.type === 'line' ? 'ln' : '') + (s.dash ? ' dash' : ''), style: '--c:' + (s.swatch || s.color) }), s.name);
+      b.addEventListener('click', () => {
+        s.hidden = !s.hidden; b.classList.toggle('off', s.hidden); b.setAttribute('aria-pressed', String(!s.hidden)); drawChart(plot);
+      });
+      lg.append(b);
+    });
+    container.append(lg);
+  }
+  const plot = h('div', { class: 'plot' });
+  plot.__cfg = cfg;
+  container.append(plot);
+  charts.add(plot);
+  drawChart(plot);
+  if (cfg.table !== false) container.append(tableView(cfg));
+}
+function colorAt(s, i, v) { return typeof s.color === 'function' ? s.color(i, v) : s.color; }
+function drawChart(plot) {
+  const cfg = plot.__cfg; if (!cfg) return;
+  plot.textContent = '';
+  const W = Math.max(260, Math.floor(plot.clientWidth || 320)), H = cfg.height || 220;
+  const n = cfg.labels.length;
+  const series = cfg.series.filter(s => !s.hidden);
+  const bars = series.filter(s => s.type === 'bar'), lines = series.filter(s => s.type === 'line');
+  const groups = [];
+  bars.forEach(s => { const g = s.stack || s.name; if (!groups.includes(g)) groups.push(g); });
+
+  // Wertebereich
+  let lo = 0, hi = 0;
+  for (let i = 0; i < n; i++) for (const g of groups) {
+    let pos = 0, neg = 0;
+    bars.filter(s => (s.stack || s.name) === g).forEach(s => { const v = s.data[i]; if (v == null) return; if (v >= 0) pos += v; else neg += v; });
+    hi = Math.max(hi, pos); lo = Math.min(lo, neg);
+  }
+  lines.forEach(s => s.data.forEach(v => { if (v != null && isFinite(v)) { hi = Math.max(hi, v); lo = Math.min(lo, v); } }));
+  (cfg.refLines || []).forEach(r => { if (r.y != null) { hi = Math.max(hi, r.y); lo = Math.min(lo, r.y); } });
+  if (hi === lo) hi = lo + 1;
+  if (cfg.totalLabels) hi += (hi - lo) * 0.04;
+  const ticks = niceTicks(lo, hi, cfg.ticks || 4);
+  lo = ticks[0]; hi = ticks[ticks.length - 1];
+  const yFmt = cfg.yFmt || compact;
+  const maxLen = Math.max(...ticks.map(t => yFmt(t).length));
+  const pad = { l: Math.max(28, maxLen * 6.4 + 8), r: 8, t: 14, b: 22 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const y = v => pad.t + ph - (v - lo) / (hi - lo) * ph;
+  const step = pw / Math.max(1, n);
+  const xc = i => pad.l + step * (i + 0.5);
+
+  const svg = sv('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': cfg.title || 'Diagramm' });
+  const txt = (x, yy, s, anchor, extra) => {
+    const t = sv('text', { x, y: yy, 'text-anchor': anchor || 'middle', style: 'font:11px var(--font);font-variant-numeric:tabular-nums;fill:var(--muted);' + (extra || '') });
+    t.textContent = s; return t;
+  };
+
+  // Prognosebereich
+  if (cfg.shadeFrom != null && cfg.shadeFrom < n) {
+    const x0 = pad.l + step * cfg.shadeFrom;
+    svg.append(sv('rect', { x: x0, y: pad.t, width: pad.l + pw - x0, height: ph, style: 'fill:var(--ink);opacity:.045' }));
+    if (pad.l + pw - x0 > 40) svg.append(txt(x0 + 5, pad.t + 11, cfg.shadeLabel || 'Trend', 'start'));
+  }
+  // Raster
+  ticks.forEach(t => {
+    svg.append(sv('line', { x1: pad.l, x2: pad.l + pw, y1: y(t), y2: y(t), style: `stroke:var(${t === 0 ? '--axis' : '--grid'});stroke-width:1;shape-rendering:crispEdges` }));
+    svg.append(txt(pad.l - 6, y(t) + 4, yFmt(t), 'end'));
+  });
+
+  // Balken
+  const gCount = groups.length;
+  const inner = Math.min(step * (gCount > 1 ? 0.84 : 0.64), gCount * 34);
+  const gap = gCount > 1 ? 2 : 0;
+  const bw = Math.max(1, (inner - gap * (gCount - 1)) / gCount);
+  const tops = [];
+  groups.forEach((g, gi) => {
+    const members = bars.filter(s => (s.stack || s.name) === g);
+    for (let i = 0; i < n; i++) {
+      const x = xc(i) - inner / 2 + gi * (bw + gap);
+      const segs = members.map(s => ({ s, v: s.data[i] })).filter(o => o.v != null && o.v !== 0);
+      let pos = 0, neg = 0;
+      const lastPos = segs.filter(o => o.v > 0).pop(), lastNeg = segs.filter(o => o.v < 0).pop();
+      segs.forEach(o => {
+        let a, b;
+        if (o.v > 0) { a = pos; b = pos + o.v; pos = b; } else { a = neg; b = neg + o.v; neg = b; }
+        let yT = y(Math.max(a, b)), yB = y(Math.min(a, b));
+        if (yB - yT < 1) { if (o.v > 0) yT = yB - 1; else yB = yT + 1; }
+        const d = barPath(x, bw, yT, yB, o === lastPos ? 4 : 0, o === lastNeg ? 4 : 0);
+        if (d) svg.append(sv('path', { d, style: `fill:${colorAt(o.s, i, o.v)};` + (members.length > 1 ? 'stroke:var(--card);stroke-width:1' : '') }));
+      });
+      if (cfg.totalLabels && members.length > 1 && segs.length) tops.push([xc(i), y(pos), pos]);
+    }
+  });
+  if (cfg.totalLabels && step >= 34) tops.forEach(([x, yy, v]) => svg.append(txt(x, yy - 5, compact(v), 'middle', 'fill:var(--ink2);font-weight:600')));
+
+  // Linien
+  lines.forEach(s => {
+    let d = '', area = '', run = [];
+    const flush = () => {
+      if (run.length) {
+        d += run.map((p, j) => (j ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('');
+        if (s.area) area += 'M' + run[0][0].toFixed(1) + ',' + y(Math.max(lo, 0)) + run.map(p => 'L' + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('') + 'L' + run[run.length - 1][0].toFixed(1) + ',' + y(Math.max(lo, 0)) + 'Z';
+      }
+      run = [];
+    };
+    s.data.forEach((v, i) => { if (v == null || !isFinite(v)) flush(); else run.push([xc(i), y(v)]); });
+    flush();
+    if (area) svg.append(sv('path', { d: area, style: `fill:${s.color};opacity:.12` }));
+    svg.append(sv('path', { d, style: `fill:none;stroke:${s.color};stroke-width:${s.width || 2};stroke-linejoin:round;stroke-linecap:round;` + (s.dash ? 'stroke-dasharray:5 4;' : '') }));
+    if (s.dots) s.data.forEach((v, i) => {
+      if (v != null && isFinite(v)) svg.append(sv('circle', { cx: xc(i), cy: y(v), r: 3.5, style: `fill:${s.color};stroke:var(--card);stroke-width:1.5` }));
+    });
+  });
+
+  // Bezugslinien (Ziel, Durchschnitt)
+  const refs = (cfg.refLines || []).filter(r => r.y != null).sort((a, b) => y(a.y) - y(b.y));
+  let lastLab = -99;
+  refs.forEach(r => {
+    const yy = y(r.y);
+    svg.append(sv('line', { x1: pad.l, x2: pad.l + pw, y1: yy, y2: yy, style: `stroke:${r.color};stroke-width:1.5;stroke-dasharray:${r.dash || '6 4'}` }));
+    let ly = yy - 5; if (ly - lastLab < 12) ly = yy + 13; lastLab = ly;
+    svg.append(txt(pad.l + pw - 2, ly, r.label, 'end', 'fill:var(--ink2);font-weight:600;paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round'));
+  });
+  // Senkrechte Markierung
+  (cfg.vMarkers || []).forEach(m => {
+    const x = xc(m.i);
+    svg.append(sv('line', { x1: x, x2: x, y1: pad.t, y2: pad.t + ph, style: 'stroke:var(--ink2);stroke-width:1.5;stroke-dasharray:3 3' }));
+    const right = x > pad.l + pw * 0.6;
+    svg.append(txt(right ? x - 5 : x + 5, pad.t + 27, m.label, right ? 'end' : 'start', 'fill:var(--ink);font-weight:650;paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round'));
+  });
+
+  // x-Beschriftung (überlappende werden ausgelassen)
+  let lastRight = -1e9;
+  for (let i = 0; i < n; i++) {
+    const lab = cfg.xLabel ? cfg.xLabel(i) : cfg.labels[i];
+    if (!lab) continue;
+    const w = lab.length * 6.2, cx = xc(i);
+    if (cx - w / 2 < lastRight + 6 || cx + w / 2 > W + 2) continue;
+    svg.append(txt(cx, H - 6, lab));
+    lastRight = cx + w / 2;
+  }
+
+  // Hover / Antippen
+  const hasBars = bars.length > 0;
+  const band = sv('rect', { x: 0, y: pad.t, width: step, height: ph, style: 'fill:var(--ink);opacity:0;pointer-events:none' });
+  const vline = sv('line', { x1: 0, x2: 0, y1: pad.t, y2: pad.t + ph, style: 'stroke:var(--ink2);stroke-width:1;opacity:0;pointer-events:none' });
+  const dotLayer = sv('g', { style: 'pointer-events:none' });
+  svg.append(band, vline, dotLayer);
+  const ov = sv('rect', { x: pad.l, y: 0, width: pw, height: H, style: 'fill:transparent;cursor:crosshair' });
+  svg.append(ov);
+  plot.append(svg);
+  const tip = h('div', { class: 'tip', hidden: true });
+  plot.append(tip);
+  const tipFmt = cfg.tipFmt || eur;
+  const hide = () => { tip.hidden = true; band.style.opacity = 0; vline.style.opacity = 0; dotLayer.textContent = ''; };
+  plot.__hide = hide;
+  const show = e => {
+    const r = svg.getBoundingClientRect();
+    const i = Math.floor((e.clientX - r.left - pad.l) / step);
+    if (i < 0 || i >= n) return hide();
+    const rows = [];
+    dotLayer.textContent = '';
+    series.forEach(s => {
+      const v = s.data[i];
+      if (v == null || !isFinite(v) || s.noTip) return;
+      rows.push(h('div', { class: 'r' }, h('span', { class: 'sw ' + (s.type === 'line' ? 'ln' : '') + (s.dash ? ' dash' : ''), style: '--c:' + colorAt(s, i, v) }),
+        h('span', { class: 'n', text: s.name }), h('span', { class: 'x', text: (s.fmt || tipFmt)(v) })));
+      if (s.type === 'line') dotLayer.append(sv('circle', { cx: xc(i), cy: y(v), r: 4, style: `fill:${s.color};stroke:var(--card);stroke-width:2` }));
+    });
+    (cfg.tipExtra ? cfg.tipExtra(i) : []).filter(Boolean).forEach(([a, b]) =>
+      rows.push(h('div', { class: 'r' }, h('span', { class: 'n', text: a }), h('span', { class: 'x', text: b }))));
+    if (!rows.length) return hide();
+    tip.textContent = '';
+    tip.append(h('b', { text: cfg.tipTitle ? cfg.tipTitle(i) : cfg.labels[i] }), ...rows);
+    tip.hidden = false;
+    if (hasBars) { band.setAttribute('x', pad.l + step * i); band.setAttribute('width', step); band.style.opacity = .06; }
+    else { vline.setAttribute('x1', xc(i)); vline.setAttribute('x2', xc(i)); vline.style.opacity = .5; }
+    const tw = tip.offsetWidth;
+    let left = xc(i) + 14; if (left + tw > W) left = xc(i) - 14 - tw; if (left < 0) left = Math.max(0, W - tw);
+    tip.style.left = left + 'px'; tip.style.top = pad.t + 'px';
+  };
+  ov.addEventListener('pointermove', show);
+  ov.addEventListener('pointerdown', show);
+  ov.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hide(); });
+}
+document.addEventListener('pointerdown', e => {
+  if (e.target.closest && e.target.closest('.plot')) return;
+  charts.forEach(p => p.__hide && p.__hide());
+});
+let resizeT;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => charts.forEach(p => p.isConnected ? drawChart(p) : charts.delete(p)), 150);
+});
+function tableView(cfg) {
+  const det = h('details', { class: 'tbl' }, h('summary', { text: 'Werte als Tabelle' }));
+  det.addEventListener('toggle', () => {
+    if (!det.open || det.__built) return;
+    det.__built = true;
+    const ser = cfg.series.filter(s => s.table !== false);
+    const tb = h('tbody');
+    for (let i = 0; i < cfg.labels.length; i++) {
+      if (!ser.some(s => s.data[i] != null)) continue;
+      tb.append(h('tr', {}, h('td', { text: cfg.tipTitle ? cfg.tipTitle(i) : cfg.labels[i] }),
+        ser.map(s => h('td', { text: s.data[i] == null ? '' : (s.fmt || cfg.tipFmt || eur)(s.data[i]) }))));
+    }
+    det.append(h('div', { class: 'tscroll' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: '' }), ser.map(s => h('th', { text: s.name })))), tb)));
+  });
+  return det;
+}
+
+/* ============================================================
+   Übersicht
+   ============================================================ */
+const yearColor = y => `var(--s${(((y - 2022) % 8) + 8) % 8 + 1})`;
+function card(root, title, sub, ctrls) {
+  const body = h('div');
+  const c = h('section', { class: 'card' },
+    h('div', { class: 'chead' }, h('div', {}, h('h3', { text: title }), sub ? h('p', { class: 'sub', text: sub }) : null),
+      ctrls && ctrls.length ? h('div', { class: 'ctrls' }, ctrls) : null), body);
+  root.append(c);
+  return body;
+}
+function seg(options, value, onchange) {
+  const w = h('div', { class: 'seg', role: 'group' });
+  options.forEach(([v, l]) => w.append(h('button', { type: 'button', class: v === value ? 'on' : '', 'aria-pressed': String(v === value), text: l, onclick: () => { if (v !== value) onchange(v); } })));
+  return w;
+}
+const noData = (body, txt) => body.append(h('p', { class: 'nodata', text: txt || 'Noch keine Daten – unter „Erfassen“ eintragen.' }));
+function setUi(k, v) {
+  // Neu zeichnen, ohne dass die Seite nach oben springt
+  const y = window.scrollY;
+  ui[k] = v; saveUi(); renderDash();
+  window.scrollTo(0, y);
+}
+function deltaSpan(v, txt, goodWhenUp = true) {
+  if (v == null || !isFinite(v) || v === 0) return h('span', { text: txt });
+  const good = (v > 0) === goodWhenUp;
+  return h('span', { class: good ? 'up' : 'down', text: (v > 0 ? '▲ ' : '▼ ') + txt });
+}
+
+function renderDash() {
+  const root = $('#tab-dash');
+  root.textContent = '';
+  charts.forEach(p => { if (!p.isConnected || root.contains(p)) charts.delete(p); });
+  if (isEmpty()) {
+    root.append(h('section', { class: 'card stack' }, h('h2', { text: 'Willkommen' }),
+      h('p', { text: 'Noch keine Daten vorhanden. Trage unter „Erfassen“ deine Werte ein oder füge eine Tabelle aus Excel bzw. Numbers ein.' }),
+      h('div', { class: 'btnrow' }, h('button', { class: 'btn', type: 'button', text: 'Daten erfassen', onclick: () => switchTab('entry') }),
+        h('button', { class: 'btn ghost', type: 'button', text: 'Sicherung laden', onclick: importBackup }))));
+    return;
+  }
+  backupBanner(root);
+  const st = S.settings, names = st.names;
+  const years = yearsWithMonths();
+  const Y = years.includes(ui.year) ? ui.year : (years[years.length - 1] || new Date().getFullYear());
+
+  if (years.length) {
+    const chips = h('div', { class: 'chips' });
+    years.slice().reverse().forEach(y => chips.append(h('button', { type: 'button', class: y === Y ? 'on' : '', text: String(y), onclick: () => setUi('year', y) })));
+    root.append(h('div', { class: 'yearbar' }, h('span', { text: 'Jahr' }), chips));
+  }
+
+  /* Kennzahlen */
+  const kp = h('div', { class: 'kpis' });
+  const wy = Object.keys(S.years).map(Number).filter(y => wealthTotal(y) != null).sort((a, b) => a - b);
+  {
+    const ly = wy[wy.length - 1], tot = ly != null ? wealthTotal(ly) : null, prev = wealthTotal(ly - 1);
+    const d = tot != null && prev != null ? tot - prev : null;
+    kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Vermögen' + (ly ? ' ' + ly : '') }), h('div', { class: 'v num', text: eur(tot) }),
+      h('div', { class: 'd' }, d != null ? deltaSpan(d, sEur(d) + ' zum Vorjahr') : 'Familie gesamt')));
+  }
+  const sqCur = MON.map((_, i) => sq(mk(Y, i + 1))).filter(v => v != null);
+  const avgSq = mean(sqCur);
+  kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Sparquote Ø ' + Y }), h('div', { class: 'v num', text: pct(avgSq) }),
+    h('div', { class: 'd' }, avgSq != null ? deltaSpan(avgSq - st.ziel, (avgSq >= st.ziel ? 'über' : 'unter') + ' Ziel ' + pct(st.ziel, 0)) : 'Ziel ' + pct(st.ziel, 0))));
+  {
+    const lm = lastMonthIn(Y, k => field(k, 'div'));
+    const cur = sum(Array.from({ length: 12 }, (_, i) => field(mk(Y, i + 1), 'div')));
+    const prev = sum(Array.from({ length: lm }, (_, i) => field(mk(Y - 1, i + 1), 'div')));
+    const hasPrev = Array.from({ length: 12 }, (_, i) => field(mk(Y - 1, i + 1), 'div')).some(v => v != null);
+    const d = hasPrev && prev > 0 ? (cur - prev) / prev * 100 : null;
+    kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Dividenden ' + Y }), h('div', { class: 'v num', text: eur(cur) }),
+      h('div', { class: 'd' }, d != null ? deltaSpan(d, sPct(d) + ' ggü. ' + (Y - 1) + (lm < 12 ? ' (Jan–' + MON[lm - 1] + ')' : '')) : 'Summe netto')));
+  }
+  {
+    const spA = spanOf(k => field(k, 'aus'));
+    let cover = null, pas12 = 0, aus12 = 0;
+    if (spA) {
+      const ks = keyRange(kAdd(spA[1], -11), spA[1]);
+      aus12 = sum(ks.map(k => field(k, 'aus'))); pas12 = sum(ks.map(passiv));
+      cover = aus12 > 0 ? pas12 / aus12 * 100 : null;
+    }
+    kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Passiv deckt Ausgaben' }), h('div', { class: 'v num', text: pct(cover) }),
+      h('div', { class: 'd', text: cover != null ? 'letzte 12 Monate: ' + eur(pas12 / 12) + ' von ' + eur(aus12 / 12) + ' im Monat' : 'braucht Ausgaben' })));
+  }
+  root.append(kp);
+
+  /* 1. Vermögen */
+  {
+    const ser = names.map((nm, j) => ({ name: nm, type: 'bar', stack: 'w', color: `var(--s${j + 1})`, data: wy.map(y => S.years[y].w?.[j] ?? null) }))
+      .filter(s => s.data.some(v => v != null));
+    const tot = wy.map(wealthTotal);
+    const b = card(root, '1 · Vermögen pro Jahr', 'Stand jeweils zum Jahresende, laufendes Jahr = aktueller Stand');
+    if (!wy.length) noData(b);
+    else makeChart(b, {
+      title: 'Vermögen pro Jahr', labels: wy.map(String), series: ser, totalLabels: true, height: 240,
+      tipExtra: i => [['Gesamt', eur(tot[i])], i > 0 && tot[i - 1] ? ['zum Vorjahr', sEur(tot[i] - tot[i - 1]) + ' (' + sPct((tot[i] - tot[i - 1]) / tot[i - 1] * 100) + ')'] : null]
+    });
+  }
+
+  /* 2. Sparquote */
+  {
+    const cur = MON.map((_, i) => sq(mk(Y, i + 1))), prev = MON.map((_, i) => sq(mk(Y - 1, i + 1)));
+    const avgPrev = mean(prev.filter(v => v != null));
+    const b = card(root, '2 · Sparquote ' + Y, 'Ø ' + Y + ': ' + pct(avgSq) + (avgPrev != null ? ' · Ø ' + (Y - 1) + ': ' + pct(avgPrev) : '') + ' · Ziel: ' + pct(st.ziel, 0));
+    if (!cur.some(v => v != null) && !prev.some(v => v != null)) noData(b, 'Für ' + Y + ' fehlen Einkommen und Ausgaben.');
+    else {
+      const ser = [{ name: String(Y), type: 'bar', color: 'var(--s1)', data: cur }];
+      if (prev.some(v => v != null)) ser.push({ name: String(Y - 1), type: 'line', color: 'var(--prev)', data: prev, dots: true, width: 2 });
+      makeChart(b, {
+        title: 'Sparquote', labels: MON, series: ser, tipFmt: v => pct(v), yFmt: pctAxis, tipTitle: i => MON_LONG[i] + ' ' + Y,
+        refLines: [{ y: st.ziel, label: 'Ziel ' + pct(st.ziel, 0), color: 'var(--ink2)' }, { y: avgSq, label: 'Ø ' + pct(avgSq), color: 'var(--s2)', dash: '2 3' }]
+      });
+    }
+  }
+
+  /* 3. Ausgaben */
+  {
+    const cur = MON.map((_, i) => field(mk(Y, i + 1), 'aus')), prev = MON.map((_, i) => field(mk(Y - 1, i + 1), 'aus'));
+    const lm = lastMonthIn(Y, k => field(k, 'aus'));
+    const sc = sum(cur), sp = sum(prev.slice(0, lm));
+    const hasPrev = prev.some(v => v != null);
+    const sub = lm ? 'Summe ' + Y + ' (Jan–' + MON[lm - 1] + '): ' + eur(sc) + (hasPrev ? ' · ' + (Y - 1) + ' gleicher Zeitraum: ' + eur(sp) + (sp > 0 ? ' (' + sPct((sc - sp) / sp * 100) + ')' : '') : '') : '';
+    const b = card(root, '3 · Ausgaben ' + Y + ' vs. ' + (Y - 1), sub);
+    if (!cur.some(v => v != null) && !hasPrev) noData(b);
+    else makeChart(b, {
+      title: 'Ausgaben', labels: MON, tipTitle: i => MON_LONG[i],
+      series: [{ name: String(Y - 1), type: 'bar', color: 'var(--prev)', data: prev }, { name: String(Y), type: 'bar', color: 'var(--s1)', data: cur }],
+      tipExtra: i => cur[i] != null && prev[i] ? [['Veränderung', sPct((cur[i] - prev[i]) / prev[i] * 100)]] : []
+    });
+  }
+
+  /* 4. Depot-Performance */
+  {
+    const rows = depotRows(), thisYear = new Date().getFullYear();
+    let sub = 'Rendite je Jahr, bereinigt um Einzahlungen';
+    if (rows.length) {
+      const prod = rows.reduce((a, r) => a * (1 + r.pc / 100), 1);
+      sub = 'Gesamt ' + sPct((prod - 1) * 100) + ' · Ø ' + pct((Math.pow(prod, 1 / rows.length) - 1) * 100) + ' p. a. (' + rows.length + ' Jahre)';
+    }
+    const b = card(root, '4 · Depot-Performance', sub);
+    if (!rows.length) noData(b, 'Trage unter „Erfassen → Jahr“ den Depotwert (auch für 2021) und die Einzahlungen ein.');
+    else makeChart(b, {
+      title: 'Depot-Performance', labels: rows.map(r => r.y === thisYear ? r.y + '*' : String(r.y)), yFmt: pctAxis, tipFmt: v => sPct(v),
+      tipTitle: i => rows[i].y + (rows[i].y === thisYear ? ' (laufend)' : ''),
+      series: [{ name: 'Rendite', type: 'bar', color: (i, v) => v < 0 ? 'var(--neg)' : 'var(--s1)', data: rows.map(r => r.pc) }],
+      tipExtra: i => [rows[i].gain != null ? ['Gewinn', sEur(rows[i].gain)] : null, rows[i].depot != null ? ['Depotwert', eur(rows[i].depot)] : null, rows[i].einz != null ? ['Einzahlungen', eur(rows[i].einz)] : null]
+    });
+    if (rows.some(r => r.y === thisYear)) b.append(h('p', { class: 'note', text: '* laufendes Jahr' }));
+  }
+
+  /* 5. Dividenden */
+  {
+    const cur = MON.map((_, i) => field(mk(Y, i + 1), 'div')), prev = MON.map((_, i) => field(mk(Y - 1, i + 1), 'div'));
+    const sc = sum(cur), lm = lastMonthIn(Y, k => field(k, 'div'));
+    const b = card(root, '5 · Dividenden', Y + ': ' + eur(sc) + (lm ? ' · Ø ' + eur2(sc / lm) + ' im Monat' : '') + (prev.some(v => v != null) ? ' · ' + (Y - 1) + ': ' + eur(sum(prev)) : ''),
+      [seg([['vergleich', 'Jahresvergleich'], ['verlauf', 'Verlauf']], ui.divMode, v => setUi('divMode', v))]);
+    const sp = spanOf(k => field(k, 'div'));
+    if (!sp) noData(b);
+    else if (ui.divMode === 'vergleich') makeChart(b, {
+      title: 'Dividenden pro Monat', labels: MON, tipFmt: eur2, tipTitle: i => MON_LONG[i],
+      series: [{ name: String(Y - 1), type: 'bar', color: 'var(--prev)', data: prev }, { name: String(Y), type: 'bar', color: 'var(--s1)', data: cur }]
+    });
+    else {
+      const ks = keyRange(sp[0], sp[1]);
+      makeChart(b, {
+        title: 'Dividenden Verlauf', labels: ks.map(kLabel), tipFmt: eur2, tipTitle: i => kLabel(ks[i]),
+        xLabel: i => kMon(ks[i]) === 1 || i === 0 ? String(kYear(ks[i])) : '',
+        series: [{ name: 'Dividenden', type: 'bar', color: 'var(--s1)', data: ks.map(k => field(k, 'div')) }]
+      });
+    }
+  }
+
+  /* 6. + 7. kumuliert */
+  cumulativeCard(root, '6 · Dividenden kumuliert', k => field(k, 'div'), 'cumDiv', 'Dividenden');
+  cumulativeCard(root, '7 · Passives Einkommen kumuliert', passiv, 'cumPas', 'Passives Einkommen');
+
+  /* 8. Einkommen, Ausgaben, Passiv mit Trend */
+  overviewCard(root);
+
+  root.append(h('p', { class: 'small muted', style: 'text-align:center;margin:8px 0 0', text: 'Werte antippen für Details · Legende antippen blendet Reihen aus' }));
+}
+
+function cumulativeCard(root, title, getter, uiKey, label) {
+  const sp = spanOf(getter);
+  const mode = ui[uiKey];
+  let sub = 'Kumulierte Summe';
+  if (sp) sub = 'Seit ' + kLabel(sp[0]) + ': ' + eur(sum(keyRange(sp[0], sp[1]).map(getter)));
+  const b = card(root, title, sub, [seg([['gesamt', 'Gesamt'], ['jahr', 'Je Jahr']], mode, v => setUi(uiKey, v))]);
+  if (!sp) return noData(b);
+  if (mode === 'gesamt') {
+    const ks = keyRange(sp[0], sp[1]);
+    let acc = 0;
+    const data = ks.map(k => (acc += getter(k) || 0));
+    makeChart(b, {
+      title, labels: ks.map(kLabel), tipTitle: i => kLabel(ks[i]),
+      xLabel: i => kMon(ks[i]) === 1 || i === 0 ? String(kYear(ks[i])) : '',
+      series: [{ name: label + ' kumuliert', type: 'line', color: 'var(--s1)', area: true, data }],
+      tipExtra: i => [['im Monat', eur2(getter(ks[i]) || 0)]]
+    });
+  } else {
+    const ys = [];
+    for (let y = kYear(sp[0]); y <= kYear(sp[1]); y++) ys.push(y);
+    const shown = ys.slice(-6);
+    const series = shown.map(y => {
+      const lm = lastMonthIn(y, getter); let acc = 0;
+      return { name: String(y), type: 'line', color: yearColor(y), data: MON.map((_, i) => i < lm ? (acc += getter(mk(y, i + 1)) || 0) : null), dots: true };
+    });
+    makeChart(b, { title, labels: MON, series, tipTitle: i => 'bis Ende ' + MON_LONG[i] });
+    if (ys.length > shown.length) b.append(h('p', { class: 'note', text: 'Gezeigt werden die letzten 6 Jahre.' }));
+  }
+}
+
+/* Trendrechnung */
+function ols(pts) {
+  const n = pts.length; let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  pts.forEach(([x, y]) => { sx += x; sy += y; sxx += x * x; sxy += x * y; });
+  const den = n * sxx - sx * sx;
+  const b = den ? (n * sxy - sx * sy) / den : 0;
+  return { a: (sy - b * sx) / n, b };
+}
+function rolling(arr, win, minCount) {
+  return arr.map((_, i) => {
+    const w = arr.slice(Math.max(0, i - win + 1), i + 1).filter(v => v != null);
+    return w.length >= minCount ? mean(w) : null;
+  });
+}
+function fitTrend(arr, mode) {
+  const pts = []; arr.forEach((v, i) => { if (v != null) pts.push([i, v]); });
+  if (pts.length < 3) return null;
+  const start = pts[0][0];
+  if (mode === 'exp') {
+    const ra = rolling(arr, 12, 10), lp = [];
+    ra.forEach((v, i) => { if (v != null && v > 0 && i - start >= 11) lp.push([i - 5.5, Math.log(v)]); });
+    if (lp.length >= 6) {
+      const { a, b } = ols(lp);
+      return { f: t => Math.exp(a + b * t), start, kind: 'exp', rate: (Math.exp(b * 12) - 1) * 100 };
+    }
+  }
+  const { a, b } = ols(pts);
+  return { f: t => a + b * t, start, kind: 'lin', perYear: b * 12, fallback: mode === 'exp' };
+}
+function overviewCard(root) {
+  const ks0 = monthKeys().filter(k => field(k, 'ein') != null || field(k, 'aus') != null || passiv(k) != null);
+  const ctrls = [seg([['lin', 'Linear'], ['exp', 'Exponentiell']], ui.trend, v => setUi('trend', v)), seg([['roh', 'Monat'], ['glatt', '12-M-Ø']], ui.smooth, v => setUi('smooth', v))];
+  if (ks0.length < 3) { const b = card(root, '8 · Einkommen, Ausgaben & passives Einkommen', 'Ab drei Monaten mit Daten erscheint hier der Trend.', ctrls); return noData(b); }
+  const t0 = kIdx(ks0[0]), t1 = kIdx(ks0[ks0.length - 1]), n = t1 - t0 + 1;
+  const keys = Array.from({ length: n }, (_, i) => iKey(t0 + i));
+  const ein = keys.map(k => field(k, 'ein')), aus = keys.map(k => field(k, 'aus'));
+  const pasSpan = spanOf(passiv);
+  const pas = keys.map(k => { const v = passiv(k); return v == null && pasSpan && k >= pasSpan[0] && k <= pasSpan[1] ? 0 : v; });
+  const fa = fitTrend(aus, ui.trend), fp = fitTrend(pas, ui.trend);
+
+  // Schnittpunkt suchen (bis 40 Jahre in die Zukunft)
+  let cross = null;
+  if (fa && fp) {
+    for (let t = Math.max(fa.start, fp.start); t <= n - 1 + 480; t++) {
+      if (fp.f(t) >= fa.f(t) && fa.f(t) > 0) { cross = t; break; }
+    }
+  }
+  const future = cross != null && cross > n - 1 ? Math.min(cross - (n - 1) + 12, 492) : 36;
+  const total = n + future;
+  const allKeys = Array.from({ length: total }, (_, i) => iKey(t0 + i));
+  const pad = arr => arr.concat(Array(future).fill(null));
+  const smooth = ui.smooth === 'glatt';
+  const disp = a => smooth ? rolling(a, 12, 1).map((v, i) => a[i] == null ? null : v) : a;
+  const trendLine = f => f ? allKeys.map((_, t) => t >= f.start ? Math.max(0, f.f(t)) : null) : allKeys.map(() => null);
+
+  const now = keys[keys.length - 1];
+  let sub;
+  const cover12 = (() => { const sp = spanOf(k => field(k, 'aus')); if (!sp) return null; const r = keyRange(kAdd(sp[1], -11), sp[1]); const a = sum(r.map(k => field(k, 'aus'))); return a > 0 ? sum(r.map(passiv)) / a * 100 : null; })();
+  if (!fa || !fp) sub = 'Für den Trend werden mindestens drei Monate Ausgaben und passives Einkommen gebraucht.';
+  else if (cross != null && cross <= n - 1) sub = 'Laut Trend deckt dein passives Einkommen die Ausgaben bereits.';
+  else if (cross != null) sub = 'Laut ' + (fp.kind === 'exp' ? 'exponentiellem' : 'linearem') + ' Trend deckt dein passives Einkommen die Ausgaben ab etwa ' + MON_LONG[kMon(allKeys[cross]) - 1] + ' ' + kYear(allKeys[cross]) + '.';
+  else sub = 'Beim aktuellen Trend wird die Deckung in den nächsten 40 Jahren nicht erreicht.';
+  const b = card(root, '8 · Einkommen, Ausgaben & passives Einkommen', sub, ctrls);
+  const series = [
+    { name: 'Einkommen', type: 'line', color: 'var(--s1)', data: pad(disp(ein)) },
+    { name: 'Ausgaben', type: 'line', color: 'var(--s2)', data: pad(disp(aus)) },
+    { name: 'Passives Einkommen', type: 'line', color: 'var(--s3)', data: pad(disp(pas)) },
+    { name: 'Trend Ausgaben', type: 'line', color: 'var(--s2)', dash: true, width: 1.5, data: trendLine(fa), table: false },
+    { name: 'Trend Passiv', type: 'line', color: 'var(--s3)', dash: true, width: 1.5, data: trendLine(fp), table: false }
+  ];
+  makeChart(b, {
+    title: 'Einkommen, Ausgaben, passives Einkommen', labels: allKeys.map(kLabel), series, height: 260,
+    tipTitle: i => kLabel(allKeys[i]) + (i >= n ? ' (Trend)' : ''),
+    xLabel: i => kMon(allKeys[i]) === 1 ? String(kYear(allKeys[i])) : '',
+    shadeFrom: n, shadeLabel: 'Trend',
+    vMarkers: cross != null && cross > n - 1 ? [{ i: cross, label: 'Deckung ' + kLabel(allKeys[cross]) }] : []
+  });
+  const notes = [];
+  if (cover12 != null) notes.push('Heute (12 Monate bis ' + kLabel(now) + '): passiv deckt ' + pct(cover12, 0) + ' der Ausgaben.');
+  if (fp && fa) {
+    if (fp.kind === 'exp') notes.push('Wachstum pro Jahr laut Trend: passiv ' + sPct(fp.rate) + ', Ausgaben ' + (fa.kind === 'exp' ? sPct(fa.rate) : sEur(fa.perYear) + ' pro Monat') + '.');
+    else notes.push('Trend pro Jahr: passiv ' + sEur(fp.perYear) + ' / Monat, Ausgaben ' + sEur(fa.perYear) + ' / Monat' + (fp.fallback ? ' (für exponentiell fehlen noch Daten)' : '') + '.');
+  }
+  notes.push('Der Trend schreibt die bisherige Entwicklung fort, er ist keine Prognose.');
+  b.append(h('p', { class: 'note', text: notes.join(' ') }));
+}
+
+function backupBanner(root) {
+  const st = S.settings, day = 864e5;
+  const never = !st.lastBackup;
+  const stale = st.lastBackup && st.lastChange > st.lastBackup && Date.now() - st.lastBackup > 7 * day;
+  if (!never && !stale) return;
+  const msg = never ? 'Noch keine Sicherung erstellt. Exportiere eine, damit nichts verloren geht, falls das iPhone ausfällt.'
+    : 'Letzte Sicherung vor ' + Math.floor((Date.now() - st.lastBackup) / day) + ' Tagen, seitdem gab es Änderungen.';
+  root.append(h('div', { class: 'banner' }, h('p', { text: msg }), h('button', { class: 'btn', type: 'button', text: 'Sichern', onclick: exportBackup })));
+}
+
+/* ============================================================
+   Erfassen
+   ============================================================ */
+function defaultMonth() {
+  const ks = monthKeys(), now = nowKey();
+  if (!ks.length) return now;
+  const next = kAdd(ks[ks.length - 1], 1);
+  return next > now ? now : next;
+}
+function numField(id, label, unit, value, hint) {
+  const inp = h('input', { class: 'inp', id, type: 'text', inputmode: 'decimal', autocomplete: 'off', enterkeyhint: 'next', value: inVal(value), 'aria-label': label });
+  return h('div', { class: 'field' }, h('label', { for: id, text: label }), h('div', { class: 'inwrap' }, inp, h('span', { class: 'unit', text: unit })), hint ? h('div', { class: 'hint', text: hint }) : null);
+}
+function readFields(root, ids) {
+  const out = {}; let ok = true;
+  ids.forEach(id => {
+    const inp = $('#' + id, root); const v = parseNum(inp.value);
+    inp.classList.toggle('bad', Number.isNaN(v));
+    if (Number.isNaN(v)) ok = false; else out[id] = v;
+  });
+  return ok ? out : null;
+}
+function renderEntry() {
+  const root = $('#tab-entry');
+  root.textContent = '';
+  root.append(h('div', { style: 'margin-bottom:12px' }, seg([['monat', 'Monat'], ['jahr', 'Jahr'], ['import', 'Tabelle einfügen']], ui.entry, v => { ui.entry = v; saveUi(); renderEntry(); })));
+  if (ui.entry === 'jahr') renderYearForm(root);
+  else if (ui.entry === 'import') renderImport(root);
+  else renderMonthForm(root);
+}
+function renderMonthForm(root) {
+  const key = ui.month && /^\d{4}-\d{2}$/.test(ui.month) ? ui.month : (ui.month = defaultMonth());
+  const m = S.months[key] || {};
+  const go = n => { ui.month = kAdd(key, n); renderEntry(); };
+  const picker = h('input', { class: 'inp', type: 'month', value: key, 'aria-label': 'Monat wählen' });
+  picker.addEventListener('change', () => { if (/^\d{4}-\d{2}$/.test(picker.value)) { ui.month = picker.value; renderEntry(); } });
+  const form = h('section', { class: 'card' },
+    h('div', { class: 'stepper' }, h('button', { class: 'btn ghost', type: 'button', 'aria-label': 'Vormonat', text: '‹', onclick: () => go(-1) }), picker,
+      h('button', { class: 'btn ghost', type: 'button', 'aria-label': 'Folgemonat', text: '›', onclick: () => go(1) })),
+    numField('ein', 'Einkommen (netto)', '€', m.ein),
+    numField('aus', 'Ausgaben', '€', m.aus),
+    numField('div', 'Dividenden (netto)', '€', m.div),
+    numField('pas', 'Sonstiges passives Einkommen', '€', m.pas, 'Zinsen, Mieteinnahmen usw. – zählt mit Dividenden zum passiven Einkommen'),
+    numField('sq', 'Sparquote manuell', '%', m.sq, 'Leer lassen = automatisch: (Einkommen − Ausgaben) ÷ Einkommen'));
+  const calc = h('div', { class: 'calc' });
+  form.append(calc);
+  const ids = ['ein', 'aus', 'div', 'pas', 'sq'];
+  const upd = () => {
+    const g = id => { const v = parseNum($('#' + id, form).value); return Number.isNaN(v) ? null : v; };
+    const e = g('ein'), a = g('aus'), q = g('sq');
+    const sqv = q != null ? q : e > 0 && a != null ? (e - a) / e * 100 : null;
+    const pv = g('div') == null && g('pas') == null ? null : (g('div') || 0) + (g('pas') || 0);
+    calc.textContent = '';
+    calc.append(h('span', {}, 'Sparquote: ', h('b', { text: pct(sqv) })), h('span', {}, 'Gespart: ', h('b', { text: e != null && a != null ? eur(e - a) : '–' })), h('span', {}, 'Passiv: ', h('b', { text: pv == null ? '–' : eur2(pv) })));
+  };
+  form.addEventListener('input', upd); upd();
+  const save = next => {
+    const v = readFields(form, ids);
+    if (!v) return toast('Bitte gültige Zahlen eingeben');
+    const o = {}; ids.forEach(id => { if (v[id] != null) o[id] = v[id]; });
+    if (Object.keys(o).length) S.months[key] = o; else delete S.months[key];
+    persist(); toast(kLabel(key) + ' gespeichert');
+    if (next) ui.month = kAdd(key, 1);
+    renderEntry();
+  };
+  form.append(h('div', { class: 'btnrow' },
+    h('button', { class: 'btn', type: 'button', text: 'Speichern', onclick: () => save(false) }),
+    h('button', { class: 'btn ghost', type: 'button', text: 'Speichern & weiter ›', onclick: () => save(true) }),
+    S.months[key] ? h('button', { class: 'btn ghost danger', type: 'button', text: 'Monat löschen', onclick: async () => {
+      if (await ask({ title: kLabel(key) + ' löschen?', text: 'Alle Werte dieses Monats werden entfernt.', ok: 'Löschen', danger: true })) { delete S.months[key]; persist(); renderEntry(); }
+    } }) : null));
+  form.querySelectorAll('input.inp[inputmode]').forEach((inp, i, all) => inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); if (all[i + 1]) all[i + 1].focus(); else save(false); }
+  }));
+  root.append(form);
+
+  // Jahresübersicht
+  const Y = kYear(key);
+  const tb = h('tbody');
+  for (let i = 1; i <= 12; i++) {
+    const k = mk(Y, i), r = S.months[k] || {};
+    const f = v => v == null ? '' : NF0.format(v);
+    const tr = h('tr', { class: 'click' + (k === key ? ' sel' : '') }, h('td', { text: MON[i - 1] }), h('td', { text: f(r.ein) }), h('td', { text: f(r.aus) }),
+      h('td', { text: r.div == null ? '' : NF2.format(r.div) }), h('td', { text: f(r.pas) }), h('td', { text: sq(k) == null ? '' : NF1.format(sq(k)) }));
+    tr.addEventListener('click', () => { ui.month = k; renderEntry(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    tb.append(tr);
+  }
+  root.append(h('section', { class: 'card' }, h('h3', { text: 'Übersicht ' + Y, style: 'margin-bottom:6px' }),
+    h('div', { class: 'tscroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Monat', 'Eink.', 'Ausg.', 'Div.', 'Sonst.', 'SQ %'].map(t => h('th', { text: t })))), tb)),
+    h('p', { class: 'note', text: 'Zeile antippen zum Bearbeiten.' })));
+}
+function renderYearForm(root) {
+  const Y = ui.eyear || new Date().getFullYear();
+  const r = S.years[Y] || {};
+  const names = S.settings.names, isNow = Y === new Date().getFullYear();
+  const go = n => { ui.eyear = Y + n; renderEntry(); };
+  const form = h('section', { class: 'card' },
+    h('div', { class: 'stepper' }, h('button', { class: 'btn ghost', type: 'button', 'aria-label': 'Vorjahr', text: '‹', onclick: () => go(-1) }),
+      h('div', { class: 'lbl', text: String(Y) }), h('button', { class: 'btn ghost', type: 'button', 'aria-label': 'Folgejahr', text: '›', onclick: () => go(1) })),
+    h('h3', { text: 'Vermögen ' + (isNow ? '(aktueller Stand)' : 'am 31.12.'), style: 'margin:8px 0 2px' }),
+    names.map((nm, j) => numField('w' + j, nm, '€', r.w?.[j])),
+    h('h3', { text: 'Depot', style: 'margin:14px 0 2px' }),
+    numField('depot', isNow ? 'Depotwert aktuell' : 'Depotwert am 31.12.', '€', r.depot),
+    numField('einz', 'Netto-Einzahlungen im Jahr', '€', r.einz, 'Einzahlungen minus Entnahmen. Für die Rendite 2022 auch den Depotwert 2021 eintragen.'),
+    numField('perf', 'Performance laut Depot', '%', r.perf, 'Optional – überschreibt die berechnete Rendite'));
+  const calc = h('div', { class: 'calc' });
+  form.append(calc);
+  const ids = [...PIDX.map(j => 'w' + j), 'depot', 'einz', 'perf'];
+  const upd = () => {
+    const g = id => { const v = parseNum($('#' + id, form).value); return Number.isNaN(v) ? null : v; };
+    const tot = sum(PIDX.map(j => g('w' + j)));
+    const p = S.years[Y - 1]?.depot; let perf = g('perf');
+    if (perf == null && g('depot') != null && p != null) { const e = g('einz') || 0; perf = (g('depot') - p - e) / (p + e / 2) * 100; }
+    calc.textContent = '';
+    calc.append(h('span', {}, 'Vermögen gesamt: ', h('b', { text: eur(tot) })), h('span', {}, 'Rendite: ', h('b', { text: perf == null ? '–' : sPct(perf) })));
+  };
+  form.addEventListener('input', upd); upd();
+  const save = () => {
+    const v = readFields(form, ids);
+    if (!v) return toast('Bitte gültige Zahlen eingeben');
+    const o = {}; const w = PIDX.map(j => v['w' + j] ?? null);
+    if (w.some(x => x != null)) o.w = w;
+    ['depot', 'einz', 'perf'].forEach(f => { if (v[f] != null) o[f] = v[f]; });
+    if (Object.keys(o).length) S.years[Y] = o; else delete S.years[Y];
+    persist(); toast(Y + ' gespeichert'); renderEntry();
+  };
+  form.append(h('div', { class: 'btnrow' }, h('button', { class: 'btn', type: 'button', text: 'Speichern', onclick: save })));
+  form.querySelectorAll('input.inp[inputmode]').forEach((inp, i, all) => inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); if (all[i + 1]) all[i + 1].focus(); else save(); }
+  }));
+  root.append(form);
+
+  const ys = Object.keys(S.years).map(Number).sort((a, b) => b - a);
+  if (ys.length) {
+    const dr = Object.fromEntries(depotRows().map(x => [x.y, x]));
+    root.append(h('section', { class: 'card' }, h('h3', { text: 'Alle Jahre', style: 'margin-bottom:6px' }),
+      h('div', { class: 'tscroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Jahr', 'Vermögen', 'Depot', 'Rendite'].map(t => h('th', { text: t })))),
+        h('tbody', {}, ys.map(y => {
+          const tr = h('tr', { class: 'click' + (y === Y ? ' sel' : '') }, h('td', { text: String(y) }), h('td', { text: wealthTotal(y) == null ? '' : eur(wealthTotal(y)) }),
+            h('td', { text: S.years[y].depot == null ? '' : eur(S.years[y].depot) }), h('td', { text: dr[y] ? sPct(dr[y].pc) : '' }));
+          tr.addEventListener('click', () => { ui.eyear = y; renderEntry(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+          return tr;
+        }))))));
+  }
+}
+
+/* Tabelle aus Excel / Numbers einfügen */
+const MNAMES = { jan: 1, januar: 1, january: 1, feb: 2, februar: 2, february: 2, mär: 3, märz: 3, mrz: 3, mar: 3, march: 3, apr: 4, april: 4, mai: 5, may: 5, jun: 6, juni: 6, june: 6, jul: 7, juli: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, okt: 10, oct: 10, oktober: 10, october: 10, nov: 11, november: 11, dez: 12, dec: 12, dezember: 12, december: 12 };
+function parseMonth(s) {
+  s = String(s).trim().toLowerCase().replace(/\.$/, '');
+  const yr = t => t.length === 2 ? 2000 + +t : +t;
+  const ok = (y, m) => y >= 1990 && y <= 2100 && m >= 1 && m <= 12 ? mk(y, m) : null;
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return ok(+m[1], +m[2]);
+  if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})$/))) return ok(+m[1], +m[2]);
+  if ((m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4}|\d{2})$/))) return ok(yr(m[3]), +m[2]);
+  if ((m = s.match(/^(\d{1,2})[.\/-](\d{4}|\d{2})$/))) return ok(yr(m[2]), +m[1]);
+  if ((m = s.match(/^([a-zäöü]+)\.?[\s\-'’]*(\d{4}|\d{2})$/))) { const mo = MNAMES[m[1]]; if (mo) return ok(yr(m[2]), mo); }
+  return null;
+}
+function splitRows(text) {
+  return text.split(/\r?\n/).map(l => l.replace(/\s+$/, '')).filter(l => l.trim()).map(l => l.includes('\t') ? l.split('\t') : l.split(';'));
+}
+function renderImport(root) {
+  const isM = ui.imp !== 'jahre';
+  const names = S.settings.names;
+  const cols = isM ? ['Monat', 'Einkommen', 'Ausgaben', 'Dividenden', 'Sonstiges passiv', 'Sparquote % (optional)']
+    : ['Jahr', ...names, 'Depotwert', 'Einzahlungen', 'Performance % (optional)'];
+  const ex = isM ? 'Jan 2024\t5.400\t3.380,50\t87,12\t12\n02.2024\t5.400\t3.120\t41,80\t12' : '2021\t70000\t3000\t2000\t30000\t\t\n2022\t79500\t3900\t2600\t33600\t9000\t';
+  const ta = h('textarea', { class: 'inp', placeholder: ex, spellcheck: 'false', autocapitalize: 'off' });
+  const out = h('div', { class: 'small', style: 'margin-top:10px' });
+  let parsed = null;
+  const apply = h('button', { class: 'btn', type: 'button', text: 'Übernehmen', disabled: true });
+  const check = () => {
+    parsed = []; const errs = [];
+    splitRows(ta.value).forEach((cells, li) => {
+      const first = cells[0].trim();
+      const key = isM ? parseMonth(first) : (/^\d{4}$/.test(first) ? first : null);
+      if (!key) { if (li > 0 || /\d/.test(first)) errs.push('Zeile ' + (li + 1) + ': „' + first.slice(0, 20) + '“ nicht erkannt'); return; }
+      const vals = cols.slice(1).map((_, j) => parseNum(cells[j + 1]));
+      const bad = vals.findIndex(v => Number.isNaN(v));
+      if (bad >= 0) { errs.push('Zeile ' + (li + 1) + ': „' + String(cells[bad + 1]).trim().slice(0, 15) + '“ ist keine Zahl'); return; }
+      if (vals.every(v => v == null)) return;
+      parsed.push([key, vals]);
+    });
+    out.textContent = '';
+    if (parsed.length) {
+      const ks = parsed.map(p => p[0]).sort();
+      out.append(h('p', {}, h('b', { text: parsed.length + (isM ? ' Monate' : ' Jahre') + ' erkannt' }), ' (' + (isM ? kLabel(ks[0]) + ' bis ' + kLabel(ks[ks.length - 1]) : ks[0] + ' bis ' + ks[ks.length - 1]) + '). Vorhandene Werte werden mit gefüllten Zellen überschrieben, leere Zellen ändern nichts.'));
+    } else out.append(h('p', { class: 'muted', text: 'Keine Datenzeilen erkannt.' }));
+    if (errs.length) out.append(h('ul', { class: 'plain' }, errs.slice(0, 8).map(e => h('li', { text: e })), errs.length > 8 ? h('li', { text: '… und ' + (errs.length - 8) + ' weitere' }) : null));
+    apply.disabled = !parsed.length;
+  };
+  apply.addEventListener('click', () => {
+    if (!parsed || !parsed.length) return;
+    parsed.forEach(([key, vals]) => {
+      if (isM) {
+        const o = Object.assign({}, S.months[key]);
+        ['ein', 'aus', 'div', 'pas', 'sq'].forEach((f, j) => { if (vals[j] != null) o[f] = vals[j]; });
+        S.months[key] = o;
+      } else {
+        const o = Object.assign({}, S.years[key]);
+        const w = (o.w || PIDX.map(() => null)).slice();
+        PIDX.forEach(j => { if (vals[j] != null) w[j] = vals[j]; });
+        if (w.some(v => v != null)) o.w = w;
+        ['depot', 'einz', 'perf'].forEach((f, j) => { if (vals[NP + j] != null) o[f] = vals[NP + j]; });
+        S.years[key] = o;
+      }
+    });
+    persist(); toast(parsed.length + (parsed.length === 1 ? ' Zeile' : ' Zeilen') + ' übernommen'); ta.value = ''; parsed = null; out.textContent = ''; apply.disabled = true;
+  });
+  root.append(h('section', { class: 'card' },
+    h('div', { style: 'margin-bottom:10px' }, seg([['monate', 'Monatswerte'], ['jahre', 'Jahreswerte']], isM ? 'monate' : 'jahre', v => { ui.imp = v; saveUi(); renderEntry(); })),
+    h('p', { class: 'small', text: 'Markiere in Excel oder Numbers die Zeilen und füge sie hier ein. Spalten in dieser Reihenfolge (Tabulator oder Semikolon getrennt):' }),
+    h('ol', { class: 'plain' }, cols.map(c => h('li', { text: c }))),
+    h('p', { class: 'small muted', style: 'margin:6px 0 10px', text: isM ? 'Monat z. B. als „Jan 2024“, „01.2024“, „2024-01“ oder Datum „01.01.2024“. Zahlen deutsch oder ohne Tausenderpunkt. Eine Überschriftenzeile wird ignoriert.' : 'Jahr vierstellig. Leere Zellen bleiben unverändert.' }),
+    ta, h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', type: 'button', text: 'Prüfen', onclick: check }), apply), out));
+  ta.addEventListener('input', () => { apply.disabled = true; });
+}
+
+/* ============================================================
+   Einstellungen
+   ============================================================ */
+function renderSettings() {
+  const root = $('#tab-set');
+  root.textContent = '';
+  const st = S.settings;
+  // Personen & Ziel
+  const persons = h('section', { class: 'card' }, h('h3', { text: 'Personen', style: 'margin-bottom:4px' }));
+  st.names.forEach((nm, j) => {
+    const inp = h('input', { class: 'inp', type: 'text', value: nm, maxlength: '30', 'aria-label': 'Name ' + (j + 1) });
+    inp.addEventListener('change', () => { st.names[j] = inp.value.trim() || emptyState().settings.names[j]; persist(false); });
+    persons.append(h('div', { class: 'field' }, h('label', { text: 'Person ' + (j + 1) }), inp));
+  });
+  const ziel = h('input', { class: 'inp', type: 'text', inputmode: 'decimal', value: inVal(st.ziel), 'aria-label': 'Sparquoten-Ziel' });
+  ziel.addEventListener('change', () => { const v = parseNum(ziel.value); if (v == null || Number.isNaN(v)) { ziel.value = inVal(st.ziel); return toast('Ungültiger Wert'); } st.ziel = v; persist(false); toast('Ziel gespeichert'); });
+  persons.append(h('h3', { text: 'Ziele', style: 'margin:14px 0 4px' }), h('div', { class: 'field' }, h('label', { text: 'Sparquoten-Ziel' }), h('div', { class: 'inwrap' }, ziel, h('span', { class: 'unit', text: '%' }))));
+  root.append(persons);
+
+  // Sicherung
+  root.append(h('section', { class: 'card' }, h('h3', { text: 'Sicherung', style: 'margin-bottom:6px' }),
+    h('div', { class: 'kv' }, h('span', { text: 'Letzte Sicherung' }), h('b', { text: st.lastBackup ? new Date(st.lastBackup).toLocaleDateString('de-DE') : 'noch nie' })),
+    h('p', { class: 'note', text: 'Die Sicherung ist eine Datei. Am iPhone „In Dateien sichern“ wählen (z. B. iCloud Drive) oder per AirDrop an den Mac/PC senden. Wiederherstellen geht auf jedem Gerät mit dieser App.' }),
+    h('div', { class: 'btnrow' }, h('button', { class: 'btn', type: 'button', text: 'Sicherung exportieren', onclick: exportBackup }),
+      h('button', { class: 'btn ghost', type: 'button', text: 'Sicherung wiederherstellen', onclick: importBackup }))));
+
+  // Daten
+  root.append(h('section', { class: 'card' }, h('h3', { text: 'Daten', style: 'margin-bottom:6px' }),
+    h('div', { class: 'kv' }, h('span', { text: 'Erfasste Monate' }), h('b', { text: String(Object.keys(S.months).length) })),
+    h('div', { class: 'kv' }, h('span', { text: 'Erfasste Jahre' }), h('b', { text: String(Object.keys(S.years).length) })),
+    h('div', { class: 'btnrow' },
+      h('button', { class: 'btn ghost', type: 'button', text: 'Beispieldaten laden', onclick: loadDemo }),
+      h('button', { class: 'btn ghost danger', type: 'button', text: 'Alle Daten löschen', onclick: wipeData }))));
+
+  root.append(h('section', { class: 'card small' }, h('h3', { text: 'Über diese App', style: 'margin-bottom:6px' }),
+    h('ul', { class: 'plain' },
+      h('li', { text: 'Version ' + APP_VERSION }),
+      h('li', { text: 'Alle Daten bleiben auf diesem Gerät. Die App lädt keine fremden Inhalte und sendet nichts ins Internet (per Content-Security-Policy gesperrt).' }),
+      h('li', { text: 'Wichtig: Wird das App-Symbol vom Home-Bildschirm gelöscht, löscht iOS auch die Daten. Vorher sichern!' }))));
+}
+
+/* Sicherung */
+async function shareFile(name, content, type) {
+  const file = new File([content], name, { type });
+  const touch = window.matchMedia && matchMedia('(pointer:coarse)').matches;
+  if (touch && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return true; }
+    catch (e) { if (e && e.name === 'AbortError') return false; }
+  }
+  const url = URL.createObjectURL(file);
+  const a = h('a', { href: url, download: name }); document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  return true;
+}
+async function exportBackup() {
+  const prev = S.settings.lastBackup;
+  S.settings.lastBackup = Date.now();
+  const env = Object.assign(envelope(), { exported: new Date().toISOString() });
+  const d = new Date(), name = 'finanzen-sicherung-' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '.json';
+  const ok = await shareFile(name, JSON.stringify(env), 'application/json');
+  if (ok) { persist(false); toast('Sicherung erstellt'); }
+  else S.settings.lastBackup = prev;
+  if (ui.tab === 'dash') renderDash(); else if (ui.tab === 'set') renderSettings();
+}
+function pickFile() {
+  return new Promise(res => {
+    const fi = $('#fileIn'); fi.value = '';
+    fi.onchange = () => res(fi.files && fi.files[0] ? fi.files[0] : null);
+    fi.click();
+  });
+}
+async function readBackupFile(file) {
+  let env;
+  try { env = JSON.parse(await file.text()); } catch (e) { await ask({ title: 'Datei unlesbar', text: 'Das ist keine gültige Sicherungsdatei.', cancel: null }); return null; }
+  if (!env || env.fmt !== 'finanzen') { await ask({ title: 'Falsche Datei', text: 'Diese Datei stammt nicht aus der Finanzübersicht.', cancel: null }); return null; }
+  if (!env.enc) return migrate(env.data);
+  // Alte, verschlüsselte Sicherung aus Version 1.0
+  let result = null;
+  await ask({ title: 'Sicherung entschlüsseln', text: 'Diese ältere Sicherung ist verschlüsselt. Passwort, das beim Erstellen aktiv war:', fields: [{ type: 'password', label: 'Passwort', ac: 'current-password' }], ok: 'Öffnen',
+    validate: async v => {
+      try { const k = await deriveKey(v[0], unb64(env.salt), env.iter || ITER); result = migrate(await unseal(env, k)); return null; }
+      catch (e) { return 'Passwort falsch.'; }
+    } });
+  return result;
+}
+async function importBackup() {
+  const file = await pickFile(); if (!file) return;
+  const data = await readBackupFile(file); if (!data) return;
+  const nM = Object.keys(data.months).length, nY = Object.keys(data.years).length;
+  if (!isEmpty() && !await ask({ title: 'Daten ersetzen?', text: 'Die Sicherung enthält ' + nM + ' Monate und ' + nY + ' Jahre. Alle aktuellen Daten auf diesem Gerät werden dadurch ersetzt.', ok: 'Ersetzen', danger: true })) return;
+  S = data;
+  persist(false);
+  toast('Wiederhergestellt: ' + nM + ' Monate, ' + nY + ' Jahre');
+  showApp();
+}
+
+/* Daten */
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function demoData() {
+  const r = mulberry32(42), months = {}, years = {};
+  const base = [70000, 3000, 2000], g = [0.13, 0.22, 0.25];
+  const rets = { 2022: -13.2, 2023: 17.1, 2024: 19.4, 2025: 8.3, 2026: 10.6 };
+  let depot = 30000;
+  const thisY = new Date().getFullYear();
+  for (let y = 2021; y <= Math.min(2026, thisY); y++) {
+    const o = { w: base.map((b, j) => Math.round(b * Math.pow(1 + g[j], y - 2021) * (0.96 + r() * 0.08) / 100) * 100) };
+    if (y > 2021) { const e = Math.round(8000 + r() * 3000); const ret = rets[y] / 100; depot = depot * (1 + ret) + e * (1 + ret / 2); o.einz = e; }
+    o.depot = Math.round(depot);
+    years[y] = o;
+  }
+  const season = [0.55, 0.75, 1.45, 1.7, 1.85, 1.05, 0.7, 0.75, 1.2, 0.65, 0.75, 1.3];
+  const end = kAdd(nowKey(), -1);
+  for (const k of keyRange('2022-01', end)) {
+    const y = kYear(k), m = kMon(k), yrs = (kIdx(k) - kIdx('2022-01')) / 12;
+    const o = { div: round2(70 * Math.pow(1.28, yrs) * season[m - 1] * (0.85 + r() * 0.3)) };
+    if (y >= 2023) o.pas = Math.round(10 + (kIdx(k) - kIdx('2023-01')) * 1.6 + r() * 8);
+    if (y >= 2024) {
+      o.ein = Math.round(5300 * Math.pow(1.03, y - 2024) + (m === 11 ? 3200 : 0) + (m === 6 ? 1500 : 0) + (r() - 0.5) * 200);
+      o.aus = Math.round(3350 * Math.pow(1.025, y - 2024) * (m === 12 ? 1.35 : m === 8 ? 1.3 : 1) * (0.88 + r() * 0.24));
+    }
+    months[k] = o;
+  }
+  return { months, years };
+}
+async function loadDemo() {
+  if (!await ask({ title: 'Beispieldaten laden?', text: isEmpty() ? 'Erfundene Werte zum Ausprobieren. Später unter „Alle Daten löschen“ wieder entfernen.' : 'Achtung: Deine eigenen Daten werden durch erfundene Beispielwerte ersetzt.', ok: 'Laden', danger: !isEmpty() })) return;
+  const d = demoData(); S.months = d.months; S.years = d.years; S.settings.lastBackup = null;
+  persist(); toast('Beispieldaten geladen'); switchTab('dash');
+}
+async function wipeData() {
+  if (!await ask({ title: 'Alle Daten löschen?', text: 'Alle Monats- und Jahreswerte werden auf diesem Gerät gelöscht. Die Einstellungen bleiben.', ok: 'Weiter', danger: true })) return;
+  if (!await ask({ title: 'Wirklich löschen?', text: 'Das lässt sich nur mit einer Sicherung rückgängig machen.', ok: 'Endgültig löschen', danger: true })) return;
+  S.months = {}; S.years = {}; S.settings.lastBackup = null;
+  persist(); toast('Daten gelöscht'); renderSettings();
+}
+
+/* ============================================================
+   Dialog, Hinweis, Navigation
+   ============================================================ */
+function ask({ title, text, fields = [], ok = 'OK', cancel = 'Abbrechen', danger = false, validate = null }) {
+  return new Promise(res => {
+    const d = $('#dlg'); d.textContent = '';
+    const inputs = fields.map(f => h('input', { class: 'inp', type: f.type || 'text', placeholder: f.label, 'aria-label': f.label, autocomplete: f.ac || 'off' }));
+    const err = h('p', { class: 'err' });
+    let busy = false;
+    const done = v => { d.close(); res(v); };
+    const okB = h('button', { class: 'btn' + (danger ? ' danger' : ''), type: 'button', text: ok });
+    okB.addEventListener('click', async () => {
+      if (busy) return;
+      const vals = inputs.map(i => i.value);
+      if (validate) {
+        busy = true; okB.disabled = true; err.textContent = '';
+        const m = await validate(vals);
+        busy = false; okB.disabled = false;
+        if (m) { err.textContent = m; return; }
+      }
+      done(fields.length ? vals : true);
+    });
+    d.append(h('h3', { text: title }), text ? h('p', { text }) : null, inputs, fields.length ? err : null,
+      h('div', { class: 'btnrow' }, cancel ? h('button', { class: 'btn ghost', type: 'button', text: cancel, onclick: () => done(null) }) : null, okB));
+    d.oncancel = e => { e.preventDefault(); if (cancel) done(null); };
+    inputs.forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); okB.click(); } }));
+    d.showModal();
+    if (inputs[0]) inputs[0].focus();
+  });
+}
+let toastT;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200);
+}
+const TITLES = { dash: 'Übersicht', entry: 'Erfassen', set: 'Einstellungen' };
+function switchTab(t) {
+  ui.tab = t; saveUi();
+  document.querySelectorAll('nav.tabbar button').forEach(b => {
+    if (b.dataset.tab === t) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  ['dash', 'entry', 'set'].forEach(x => { $('#tab-' + x).hidden = x !== t; });
+  $('#title').textContent = TITLES[t];
+  if (t === 'dash') renderDash(); else if (t === 'entry') renderEntry(); else renderSettings();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('nav.tabbar button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+function showScreen(id) { ['lock', 'app'].forEach(x => { $('#' + x).hidden = x !== id; }); }
+function showApp() {
+  showScreen('app');
+  switchTab(ui.tab in TITLES ? ui.tab : 'dash');
+}
+
+/* Daten aus Version 1.0 mit Passwort: einmal entschlüsseln und danach unverschlüsselt speichern */
+$('#lockForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const env = readEnvelope(); if (!env || !env.enc) return boot();
+  const btn = $('#lockBtn'); btn.disabled = true; $('#lockErr').textContent = '';
+  try {
+    const k = await deriveKey($('#lockPw').value, unb64(env.salt), env.iter || ITER);
+    S = migrate(await unseal(env, k));
+    $('#lockPw').value = '';
+    persist(false);
+    showApp();
+    toast('Passwort entfernt – ab jetzt ohne Passwort');
+  } catch (err) { $('#lockErr').textContent = 'Passwort falsch.'; }
+  btn.disabled = false;
+});
+$('#lockForgot').addEventListener('click', async () => {
+  if (!await ask({ title: 'Passwort vergessen', text: 'Ohne das bisherige Passwort lassen sich diese Daten nicht mehr öffnen.\n\nDu kannst alles auf diesem Gerät löschen und neu beginnen – danach z. B. eine Sicherung laden.', ok: 'Alles löschen…', danger: true })) return;
+  if (!await ask({ title: 'Wirklich alles löschen?', text: 'Alle Finanzdaten auf diesem Gerät werden unwiderruflich gelöscht.', ok: 'Endgültig löschen', danger: true })) return;
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  boot();
+});
+
+/* Sichtschutz im App-Umschalter */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (S) document.body.classList.add('covered'); }
+  else document.body.classList.remove('covered');
+});
+
+function boot() {
+  S = null;
+  const env = readEnvelope();
+  if (env && env.enc) {
+    if (window.crypto && crypto.subtle) { showScreen('lock'); return; }
+    document.body.textContent = 'Die alten Daten lassen sich nur über https öffnen.'; return;
+  }
+  S = env ? migrate(env.data) : emptyState();
+  if (env && !(env.data && env.data.v >= 2)) persist(false);   // umgestellten Datenstand gleich speichern
+  showApp();
+}
+{
+  boot();
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
