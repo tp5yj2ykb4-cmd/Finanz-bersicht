@@ -80,6 +80,7 @@ nav.tabbar svg { width: 24px; height: 24px; }
 .kpi .l { font-size: 12px; color: var(--ink2); }
 .kpi .v { font-size: 22px; font-weight: 650; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi .d { font-size: 12px; color: var(--ink2); }
+.kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .up { color: var(--good); }
 .down { color: var(--bad); }
 
@@ -163,7 +164,11 @@ dialog input { margin-bottom: 8px; }
 dialog .btnrow { justify-content: flex-end; }
 #toast { position: fixed; left: 50%; bottom: calc(80px + var(--safe-b)); transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s; background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 999px; font-size: 14px; z-index: 300; pointer-events: none; max-width: 90vw; text-align: center; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-@media (min-width: 700px) { .kpis { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 700px) {
+  .kpis { grid-template-columns: repeat(5, 1fr); }
+  .kpi:last-child:nth-child(odd) { grid-column: auto; }
+  .kpi .v { font-size: 20px; }
+}
 @media (max-width: 360px) { .field { grid-template-columns: 1fr 120px; } }
 </style>
 </head>
@@ -214,7 +219,7 @@ dialog .btnrow { justify-content: flex-end; }
 /* ============================================================
    Grundlagen
    ============================================================ */
-const APP_VERSION = '1.2';
+const APP_VERSION = '1.3';
 const KEY = 'finanzen.v1', UIKEY = 'finanzen.ui', ITER = 310000;
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const MON_LONG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -258,7 +263,7 @@ const NF1 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFr
 const NF2 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const eur = v => v == null || !isFinite(v) ? '–' : NF0.format(Math.round(v)) + ' €';
 const eur2 = v => v == null || !isFinite(v) ? '–' : NF2.format(v) + ' €';
-const pct = (v, d = 1) => v == null || !isFinite(v) ? '–' : (d ? NF1 : NF0).format(v) + ' %';
+const pct = (v, d = 1) => v == null || !isFinite(v) ? '–' : (d === 2 ? NF2 : d ? NF1 : NF0).format(v) + ' %';
 const sign = v => v > 0 ? '+' : '';
 const sEur = v => v == null ? '–' : sign(v) + eur(v);
 const sPct = v => v == null || !isFinite(v) ? '–' : sign(v) + pct(v);
@@ -318,6 +323,8 @@ async function unseal(env, key) {
 // Vermögen wird für 3 Personen geführt: Ehepaar zusammen, Kind 1, Kind 2.
 // Datenstand v1 hatte 4 Personen (Ich, Frau getrennt) – migrate() fasst die ersten beiden zusammen.
 const NP = 3, PIDX = [0, 1, 2];
+// Depotfelder je Jahr: Wert, Netto-Einzahlungen, Performance % (optional), Einstandswert (investiertes Kapital)
+const YF = ['depot', 'einz', 'perf', 'inv'];
 function emptyState() {
   return { v: 2, settings: { names: ['Wir', 'Kind 1', 'Kind 2'], ziel: 30, lastBackup: null, lastChange: null }, months: {}, years: {} };
 }
@@ -353,7 +360,7 @@ function migrate(d) {
     const o = {};
     const w = wOf(r);
     if (w.some(v => v != null)) o.w = w;
-    for (const f of ['depot', 'einz', 'perf']) { const v = numOrNull(r[f]); if (v != null) o[f] = v; }
+    for (const f of YF) { const v = numOrNull(r[f]); if (v != null) o[f] = v; }
     if (Object.keys(o).length) years[y] = o;
   }
   return { v: 2, settings: st, months, years };
@@ -406,6 +413,41 @@ function depotRows() {
     }
     return { y, pc, gain, depot: c.depot ?? null, einz: c.einz ?? null };
   }).filter(r => r.pc != null);
+}
+/* Persönliche Dividendenrendite = Dividenden der letzten 12 Monate ÷ investiertes Kapital (Einstandswert).
+   Ohne Einstandswert wird er geschätzt: erster Depotwert + alle späteren Netto-Einzahlungen. */
+function divYield() {
+  const sp = spanOf(k => field(k, 'div'));
+  if (!sp) return null;
+  const ks = keyRange(kAdd(sp[1], -11), sp[1]);
+  const div12 = sum(ks.map(k => field(k, 'div')));
+  const ys = Object.keys(S.years).map(Number).sort((a, b) => a - b);
+  const lastWith = f => ys.filter(y => S.years[y][f] != null).pop();
+  let inv = null, est = false;
+  const yi = lastWith('inv');
+  if (yi != null) inv = S.years[yi].inv;
+  else {
+    const y0 = ys.find(y => S.years[y].depot != null);
+    if (y0 != null) { inv = S.years[y0].depot + sum(ys.filter(y => y > y0).map(y => S.years[y].einz)); est = true; }
+  }
+  const yd = lastWith('depot'), depot = yd != null ? S.years[yd].depot : null;
+  return {
+    div12, from: ks[0], to: ks[ks.length - 1], inv, est,
+    yoc: inv > 0 ? div12 / inv * 100 : null,
+    cur: depot > 0 ? div12 / depot * 100 : null
+  };
+}
+function divYieldTile() {
+  const r = divYield();
+  const tile = h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Persönl. Dividendenrendite' }));
+  if (!r || r.yoc == null) {
+    tile.append(h('div', { class: 'v num', text: '–' }), h('div', { class: 'd', text: r ? 'Einstandswert unter „Erfassen → Jahr“ eintragen' : 'braucht Dividenden' }));
+    return tile;
+  }
+  tile.append(h('div', { class: 'v num', text: pct(r.yoc, 2) }),
+    h('div', { class: 'd', text: eur(r.div12) + ' in 12 Monaten auf ' + eur(r.inv) + (r.est ? ' Einstand (geschätzt)' : ' Einstand') }),
+    r.cur != null ? h('div', { class: 'd', text: 'auf Depotwert: ' + pct(r.cur, 2) }) : null);
+  return tile;
 }
 const wealthTotal = y => { const w = S.years[y]?.w; return w && w.some(v => v != null) ? sum(w) : null; };
 
@@ -697,10 +739,13 @@ function renderDash() {
   const kp = h('div', { class: 'kpis' });
   const wy = Object.keys(S.years).map(Number).filter(y => wealthTotal(y) != null).sort((a, b) => a - b);
   {
-    const ly = wy[wy.length - 1], tot = ly != null ? wealthTotal(ly) : null, prev = wealthTotal(ly - 1);
+    // Nur das Vermögen von „Wir“ (Person 1), ohne Kinder
+    const own = y => S.years[y]?.w?.[0] ?? null;
+    const oy = Object.keys(S.years).map(Number).filter(y => own(y) != null).sort((a, b) => a - b);
+    const ly = oy[oy.length - 1], tot = ly != null ? own(ly) : null, prev = own(ly - 1);
     const d = tot != null && prev != null ? tot - prev : null;
-    kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Vermögen' + (ly ? ' ' + ly : '') }), h('div', { class: 'v num', text: eur(tot) }),
-      h('div', { class: 'd' }, d != null ? deltaSpan(d, sEur(d) + ' zum Vorjahr') : 'Familie gesamt')));
+    kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Vermögen ' + names[0] + (ly ? ' ' + ly : '') }), h('div', { class: 'v num', text: eur(tot) }),
+      h('div', { class: 'd' }, d != null ? deltaSpan(d, sEur(d) + ' zum Vorjahr') : 'ohne Kinder')));
   }
   const sqCur = MON.map((_, i) => sq(mk(Y, i + 1))).filter(v => v != null);
   const avgSq = mean(sqCur);
@@ -715,6 +760,7 @@ function renderDash() {
     kp.append(h('div', { class: 'kpi' }, h('div', { class: 'l', text: 'Dividenden ' + Y }), h('div', { class: 'v num', text: eur(cur) }),
       h('div', { class: 'd' }, d != null ? deltaSpan(d, sPct(d) + ' ggü. ' + (Y - 1) + (lm < 12 ? ' (Jan–' + MON[lm - 1] + ')' : '')) : 'Summe netto')));
   }
+  kp.append(divYieldTile());
   {
     const spA = spanOf(k => field(k, 'aus'));
     let cover = null, pas12 = 0, aus12 = 0;
@@ -1055,10 +1101,11 @@ function renderYearForm(root) {
     h('h3', { text: 'Depot', style: 'margin:14px 0 2px' }),
     numField('depot', isNow ? 'Depotwert aktuell' : 'Depotwert am 31.12.', '€', r.depot),
     numField('einz', 'Netto-Einzahlungen im Jahr', '€', r.einz, 'Einzahlungen minus Entnahmen. Für die Rendite 2022 auch den Depotwert 2021 eintragen.'),
-    numField('perf', 'Performance laut Depot', '%', r.perf, 'Optional – überschreibt die berechnete Rendite'));
+    numField('perf', 'Performance laut Depot', '%', r.perf, 'Optional – überschreibt die berechnete Rendite'),
+    numField('inv', 'Investiertes Kapital (Einstandswert)', '€', r.inv, 'Kaufwert aller Positionen im Depot – Grundlage der persönlichen Dividendenrendite'));
   const calc = h('div', { class: 'calc' });
   form.append(calc);
-  const ids = [...PIDX.map(j => 'w' + j), 'depot', 'einz', 'perf'];
+  const ids = [...PIDX.map(j => 'w' + j), ...YF];
   const upd = () => {
     const g = id => { const v = parseNum($('#' + id, form).value); return Number.isNaN(v) ? null : v; };
     const tot = sum(PIDX.map(j => g('w' + j)));
@@ -1073,7 +1120,7 @@ function renderYearForm(root) {
     if (!v) return toast('Bitte gültige Zahlen eingeben');
     const o = {}; const w = PIDX.map(j => v['w' + j] ?? null);
     if (w.some(x => x != null)) o.w = w;
-    ['depot', 'einz', 'perf'].forEach(f => { if (v[f] != null) o[f] = v[f]; });
+    YF.forEach(f => { if (v[f] != null) o[f] = v[f]; });
     if (Object.keys(o).length) S.years[Y] = o; else delete S.years[Y];
     persist(); toast(Y + ' gespeichert'); renderEntry();
   };
@@ -1118,7 +1165,7 @@ function renderImport(root) {
   const isM = ui.imp !== 'jahre';
   const names = S.settings.names;
   const cols = isM ? ['Monat', 'Einkommen', 'Ausgaben', 'Dividenden', 'Sonstiges passiv', 'Sparquote % (optional)']
-    : ['Jahr', ...names, 'Depotwert', 'Einzahlungen', 'Performance % (optional)'];
+    : ['Jahr', ...names, 'Depotwert', 'Einzahlungen', 'Performance % (optional)', 'Einstandswert (optional)'];
   const ex = isM ? 'Jan 2024\t5.400\t3.380,50\t87,12\t12\n02.2024\t5.400\t3.120\t41,80\t12' : '2021\t70000\t3000\t2000\t30000\t\t\n2022\t79500\t3900\t2600\t33600\t9000\t';
   const ta = h('textarea', { class: 'inp', placeholder: ex, spellcheck: 'false', autocapitalize: 'off' });
   const out = h('div', { class: 'small', style: 'margin-top:10px' });
@@ -1156,7 +1203,7 @@ function renderImport(root) {
         const w = (o.w || PIDX.map(() => null)).slice();
         PIDX.forEach(j => { if (vals[j] != null) w[j] = vals[j]; });
         if (w.some(v => v != null)) o.w = w;
-        ['depot', 'einz', 'perf'].forEach((f, j) => { if (vals[NP + j] != null) o[f] = vals[NP + j]; });
+        YF.forEach((f, j) => { if (vals[NP + j] != null) o[f] = vals[NP + j]; });
         S.years[key] = o;
       }
     });
@@ -1273,12 +1320,13 @@ function demoData() {
   const r = mulberry32(42), months = {}, years = {};
   const base = [70000, 3000, 2000], g = [0.13, 0.22, 0.25];
   const rets = { 2022: -13.2, 2023: 17.1, 2024: 19.4, 2025: 8.3, 2026: 10.6 };
-  let depot = 30000;
+  let depot = 30000, inv = 27000;
   const thisY = new Date().getFullYear();
   for (let y = 2021; y <= Math.min(2026, thisY); y++) {
     const o = { w: base.map((b, j) => Math.round(b * Math.pow(1 + g[j], y - 2021) * (0.96 + r() * 0.08) / 100) * 100) };
-    if (y > 2021) { const e = Math.round(8000 + r() * 3000); const ret = rets[y] / 100; depot = depot * (1 + ret) + e * (1 + ret / 2); o.einz = e; }
+    if (y > 2021) { const e = Math.round(8000 + r() * 3000); const ret = rets[y] / 100; depot = depot * (1 + ret) + e * (1 + ret / 2); o.einz = e; inv += e; }
     o.depot = Math.round(depot);
+    o.inv = inv;
     years[y] = o;
   }
   const season = [0.55, 0.75, 1.45, 1.7, 1.85, 1.05, 0.7, 0.75, 1.2, 0.65, 0.75, 1.3];
