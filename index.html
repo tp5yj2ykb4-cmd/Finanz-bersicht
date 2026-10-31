@@ -149,6 +149,17 @@ textarea.inp { min-height: 150px; font: 13px/1.4 ui-monospace, Menlo, Consolas, 
 .kv { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
 .kv:last-child { border-bottom: 0; }
 ul.plain { margin: 6px 0 0; padding-left: 18px; color: var(--ink2); font-size: 13px; }
+/* Konten (seit 1.8): Block je Person im Jahresformular, Liste in den Einstellungen */
+.pblock { border-bottom: 1px solid var(--grid); padding-bottom: 2px; }
+.pblock .field { border-bottom: 0; padding: 6px 0; }
+.phead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 10px; }
+.psum { font-weight: 650; font-variant-numeric: tabular-nums; }
+.pblock > .hint { font-size: 12px; color: var(--muted); margin: 2px 0 4px; }
+.linkbtn.left { display: inline-block; margin: 0 0 6px; padding: 6px 0; }
+.linkbtn.danger { color: var(--bad); }
+.krow { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--grid); }
+.krow .kname { flex: 1; min-width: 0; padding: 8px 0; overflow-wrap: anywhere; }
+.krow .linkbtn { margin: 0; padding: 8px 6px; font-size: 13px; flex: none; }
 
 /* Start, Sperre, Abdeckung */
 .screen { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: calc(var(--safe-t) + 24px) 20px calc(var(--safe-b) + 24px); }
@@ -223,7 +234,7 @@ dialog .btnrow { justify-content: flex-end; }
 /* ============================================================
    Grundlagen
    ============================================================ */
-const APP_VERSION = '1.7';
+const APP_VERSION = '1.8';
 const KEY = 'finanzen.v1', UIKEY = 'finanzen.ui', ITER = 310000;
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const MON_LONG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -331,8 +342,12 @@ const NP = 3, PIDX = [0, 1, 2];
 const YF = ['depot', 'einz', 'perf'];
 const NOTE_MAX = 120;   // Monatsnotiz, z. B. „Urlaub“ oder „Auto-Reparatur“
 function emptyState() {
-  return { v: 2, settings: { names: ['Wir', 'Kind 1', 'Kind 2'], ziel: 30, lastBackup: null, lastChange: null }, months: {}, years: {} };
+  return { v: 2, settings: { names: ['Wir', 'Kind 1', 'Kind 2'], ziel: 30, lastBackup: null, lastChange: null }, months: {}, years: {}, konten: [] };
 }
+// Konten (seit 1.8): S.konten = [{ id, name, p (Person 0–2), zu? (aufgelöst ab Jahr) }],
+// Werte je Jahr in years[Y].k = { id: Betrag }. Hat eine Person in einem Jahr Kontowerte,
+// ist w[p] deren Summe (beim Speichern berechnet). Jahre ohne Kontowerte behalten ihr w.
+const KONTO_ID = /^k[a-z0-9]{1,12}$/;
 function migrate(d) {
   const e = emptyState();
   if (!d || typeof d !== 'object') return e;
@@ -354,6 +369,13 @@ function migrate(d) {
     return old ? [pairSum(w[0], w[1]), w[2] ?? null, w[3] ?? null] : PIDX.map(i => w[i] ?? null);
   };
   const months = {}, years = {};
+  const konten = [], kIds = new Set();
+  for (const x of Array.isArray(d.konten) ? d.konten : []) {
+    if (!x || !KONTO_ID.test(x.id) || !PIDX.includes(x.p) || kIds.has(x.id)) continue;
+    const o = { id: x.id, name: String(x.name || '').trim().slice(0, 40) || 'Konto', p: x.p };
+    if (Number.isInteger(x.zu)) o.zu = x.zu;
+    konten.push(o); kIds.add(x.id);
+  }
   for (const [k, m] of Object.entries(d.months || {})) {
     if (!/^\d{4}-\d{2}$/.test(k) || !m) continue;
     const o = {};
@@ -367,9 +389,14 @@ function migrate(d) {
     const w = wOf(r);
     if (w.some(v => v != null)) o.w = w;
     for (const f of YF) { const v = numOrNull(r[f]); if (v != null) o[f] = v; }
+    if (r.k && typeof r.k === 'object') {
+      const kv = {};
+      for (const [id, v] of Object.entries(r.k)) { const n = numOrNull(v); if (kIds.has(id) && n != null) kv[id] = n; }
+      if (Object.keys(kv).length) o.k = kv;
+    }
     if (Object.keys(o).length) years[y] = o;
   }
-  return { v: 2, settings: st, months, years };
+  return { v: 2, settings: st, months, years, konten };
 }
 function readEnvelope() {
   try { const t = localStorage.getItem(KEY); return t ? JSON.parse(t) : null; } catch (e) { return null; }
@@ -382,6 +409,21 @@ function persist(changed = true) {
   catch (e) { toast('Speichern fehlgeschlagen – Speicher voll?'); }
 }
 const isEmpty = () => !Object.keys(S.months).length && !Object.keys(S.years).length;
+
+/* Konten */
+const kontenVon = p => S.konten.filter(x => x.p === p);
+// Ein aufgelöstes Konto erscheint ab seinem Auflösungsjahr nur noch, wo es noch einen Wert hat.
+const kontoSichtbar = (x, Y) => !(x.zu && Y >= x.zu) || S.years[Y]?.k?.[x.id] != null;
+const kontoJahre = id => Object.keys(S.years).filter(y => S.years[y].k?.[id] != null).sort();
+function neueKontoId() { let id; do id = 'k' + Math.random().toString(36).slice(2, 8); while (S.konten.some(x => x.id === id)); return id; }
+async function kontoAnlegen(p) {
+  const v = await ask({ title: 'Konto für ' + S.settings.names[p], text: 'Zum Beispiel Girokonto, Tagesgeld, Depot, Bausparvertrag oder Sparbuch.',
+    fields: [{ label: 'Name des Kontos' }], ok: 'Anlegen', validate: v => v[0].trim() ? null : 'Bitte einen Namen eingeben.' });
+  if (!v) return null;
+  const k = { id: neueKontoId(), name: v[0].trim().slice(0, 40), p };
+  S.konten.push(k); persist(); toast('Konto „' + k.name + '“ angelegt');
+  return k;
+}
 
 /* Abgeleitete Werte */
 function sq(k) {
@@ -1219,26 +1261,58 @@ function renderMonthForm(root) {
     h('div', { class: 'tscroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Monat', 'Eink.', 'Ausg.', 'Div.', 'Zinsen', 'SQ %'].map(t => h('th', { text: t })))), tb)),
     h('p', { class: 'note', text: 'Zeile antippen zum Bearbeiten.' })));
 }
+/* Jahresformular. Je Person: entweder Konten (Summe = Vermögen der Person) oder, ohne Konten,
+   ein Gesamtwert wie bisher. Beim Anlegen eines Kontos wird neu gezeichnet; damit Getipptes
+   nicht verloren geht, merkt sich jahrEntwurf die Felder bis zum nächsten Zeichnen. */
+let jahrEntwurf = null;
 function renderYearForm(root) {
   const Y = ui.eyear || new Date().getFullYear();
   const r = S.years[Y] || {};
   const names = S.settings.names, isNow = Y === new Date().getFullYear();
+  const kv = r.k || {}, vk = S.years[Y - 1]?.k || {};
   const go = n => { ui.eyear = Y + n; renderEntry(); };
+  const sichtbar = PIDX.map(j => kontenVon(j).filter(x => kontoSichtbar(x, Y)));
   const form = h('section', { class: 'card' },
     h('div', { class: 'stepper' }, h('button', { class: 'btn ghost', type: 'button', 'aria-label': 'Vorjahr', text: '‹', onclick: () => go(-1) }),
       h('div', { class: 'lbl', text: String(Y) }), h('button', { class: 'btn ghost', type: 'button', 'aria-label': 'Folgejahr', text: '›', onclick: () => go(1) })),
-    h('h3', { text: 'Vermögen ' + (isNow ? '(aktueller Stand)' : 'am 31.12.'), style: 'margin:8px 0 2px' }),
-    names.map((nm, j) => numField('w' + j, nm, '€', r.w?.[j])),
-    h('h3', { text: 'Depot', style: 'margin:14px 0 2px' }),
+    h('h3', { text: 'Vermögen ' + (isNow ? '(aktueller Stand)' : 'am 31.12.'), style: 'margin:8px 0 2px' }));
+  names.forEach((nm, j) => {
+    const ks = sichtbar[j];
+    const box = h('div', { class: 'pblock' }, h('div', { class: 'phead' }, h('b', { text: nm }), h('span', { class: 'psum', id: 'psum' + j })));
+    if (!ks.length) box.append(numField('w' + j, 'Vermögen gesamt', '€', r.w?.[j], kontenVon(j).length ? null : 'Oder Konten anlegen, dann wird die Summe gebildet.'));
+    else {
+      ks.forEach(x => box.append(numField('k_' + x.id, x.name, '€', kv[x.id], vk[x.id] != null ? 'Vorjahr: ' + eur(vk[x.id]) : null)));
+      if (!ks.some(x => kv[x.id] != null) && r.w?.[j] != null)
+        box.append(h('p', { class: 'hint', text: 'Bisher als Gesamtwert erfasst: ' + eur(r.w[j]) + '. Solange die Konten leer bleiben, gilt dieser Wert.' }));
+    }
+    box.append(h('button', { class: 'linkbtn left', type: 'button', text: '+ Konto für ' + nm, onclick: async () => {
+      jahrEntwurf = { Y, vals: Object.fromEntries([...form.querySelectorAll('input.inp[id]')].map(i => [i.id, i.value])) };
+      if (await kontoAnlegen(j)) renderEntry(); else jahrEntwurf = null;
+    } }));
+    form.append(box);
+  });
+  form.append(h('h3', { text: 'Depot', style: 'margin:14px 0 2px' }),
     numField('depot', isNow ? 'Depotwert aktuell' : 'Depotwert am 31.12.', '€', r.depot),
     numField('einz', 'Netto-Einzahlungen im Jahr', '€', r.einz, 'Einzahlungen minus Entnahmen. Für die Rendite 2022 auch den Depotwert 2021 eintragen.'),
     numField('perf', 'Performance laut Depot', '%', r.perf, 'Optional – überschreibt die berechnete Rendite'));
+  // Entwurf nach dem Anlegen eines Kontos zurückschreiben
+  if (jahrEntwurf && jahrEntwurf.Y === Y) for (const [id, v] of Object.entries(jahrEntwurf.vals)) { const i = $('#' + id, form); if (i) i.value = v; }
+  jahrEntwurf = null;
   const calc = h('div', { class: 'calc' });
   form.append(calc);
-  const ids = [...PIDX.map(j => 'w' + j), ...YF];
+  const kIds = sichtbar.flat().map(x => 'k_' + x.id), wIds = PIDX.filter(j => !sichtbar[j].length).map(j => 'w' + j);
+  const ids = [...wIds, ...kIds, ...YF];
+  const g = id => { const v = parseNum($('#' + id, form).value); return Number.isNaN(v) ? null : v; };
+  // Vermögen einer Person: Summe der ausgefüllten Konten, sonst Gesamtwert bzw. bisheriger Wert
+  const personWert = j => {
+    const ks = sichtbar[j];
+    if (!ks.length) return g('w' + j);
+    const vals = ks.map(x => g('k_' + x.id)).filter(v => v != null);
+    return vals.length ? sum(vals) : (r.w?.[j] ?? null);
+  };
   const upd = () => {
-    const g = id => { const v = parseNum($('#' + id, form).value); return Number.isNaN(v) ? null : v; };
-    const tot = sum(PIDX.map(j => g('w' + j)));
+    PIDX.forEach(j => { const v = personWert(j), el = $('#psum' + j, form); if (el) el.textContent = v == null ? '' : eur(v); });
+    const tot = sum(PIDX.map(personWert));
     const p = S.years[Y - 1]?.depot; let perf = g('perf');
     if (perf == null && g('depot') != null && p != null) { const e = g('einz') || 0; perf = (g('depot') - p - e) / (p + e / 2) * 100; }
     calc.textContent = '';
@@ -1248,9 +1322,12 @@ function renderYearForm(root) {
   const save = () => {
     const v = readFields(form, ids);
     if (!v) return toast('Bitte gültige Zahlen eingeben');
-    const o = {}; const w = PIDX.map(j => v['w' + j] ?? null);
+    const o = {}, k = Object.assign({}, r.k || {});
+    sichtbar.flat().forEach(x => { const val = v['k_' + x.id]; if (val != null) k[x.id] = val; else delete k[x.id]; });
+    const w = PIDX.map(personWert);
     if (w.some(x => x != null)) o.w = w;
     YF.forEach(f => { if (v[f] != null) o[f] = v[f]; });
+    if (Object.keys(k).length) o.k = k;
     if (Object.keys(o).length) S.years[Y] = o; else delete S.years[Y];
     persist(); toast(Y + ' gespeichert'); renderEntry();
   };
@@ -1259,6 +1336,13 @@ function renderYearForm(root) {
     if (e.key === 'Enter') { e.preventDefault(); if (all[i + 1]) all[i + 1].focus(); else save(); }
   }));
   root.append(form);
+
+  // Export für die Ablage am Jahresende
+  root.append(h('section', { class: 'card' }, h('h3', { text: 'Export für die Ablage', style: 'margin-bottom:4px' }),
+    h('p', { class: 'note', style: 'margin-top:0', text: 'Tabelle (CSV) mit allen Konten, Summen je Person und Depot. Öffnet sich in Excel und Numbers. Am iPhone „In Dateien sichern“ wählen.' }),
+    h('div', { class: 'btnrow' },
+      h('button', { class: 'btn', type: 'button', text: 'Jahr ' + Y + ' exportieren', onclick: () => exportJahr(Y) }),
+      h('button', { class: 'btn ghost', type: 'button', text: 'Alle Jahre exportieren', onclick: exportAlleJahre }))));
 
   const ys = Object.keys(S.years).map(Number).sort((a, b) => b - a);
   if (ys.length) {
@@ -1272,6 +1356,53 @@ function renderYearForm(root) {
           return tr;
         }))))));
   }
+}
+
+/* CSV-Export: Semikolon und Dezimalkomma (deutsches Excel/Numbers), UTF-8 mit BOM, damit
+   Umlaute in Excel stimmen. Zahlen ohne Tausenderpunkt, damit sie als Zahl erkannt werden. */
+const csvZahl = v => v == null || !isFinite(v) ? '' : (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+const csvFeld = s => { s = String(s ?? ''); return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const csvZeile = a => a.map(csvFeld).join(';');
+const csvDatei = zeilen => '﻿' + zeilen.map(csvZeile).join('\r\n') + '\r\n';
+const heuteDE = () => new Date().toLocaleDateString('de-DE');
+function exportJahr(Y) {
+  const r = S.years[Y] || {}, v = S.years[Y - 1] || {}, names = S.settings.names;
+  const diff = (a, b) => a == null || b == null ? null : a - b;
+  const z = [['Finanzübersicht – Vermögen ' + Y], [Y === new Date().getFullYear() ? 'Stand: ' + heuteDE() : 'Stand: 31.12.' + Y], [],
+    ['Person', 'Konto', 'Betrag (€)', 'Vorjahr (€)', 'Veränderung (€)']];
+  names.forEach((nm, j) => {
+    const ks = kontenVon(j).filter(x => r.k?.[x.id] != null || v.k?.[x.id] != null);
+    ks.forEach(x => z.push([nm, x.name + (x.zu && Y >= x.zu ? ' (aufgelöst)' : ''), csvZahl(r.k?.[x.id]), csvZahl(v.k?.[x.id]), csvZahl(diff(r.k?.[x.id], v.k?.[x.id]))]));
+    z.push([nm, ks.length ? 'Summe' : 'Gesamt', csvZahl(r.w?.[j]), csvZahl(v.w?.[j]), csvZahl(diff(r.w?.[j], v.w?.[j]))]);
+  });
+  z.push(['Alle', 'Vermögen gesamt', csvZahl(wealthTotal(Y)), csvZahl(wealthTotal(Y - 1)), csvZahl(diff(wealthTotal(Y), wealthTotal(Y - 1)))]);
+  if (r.depot != null || r.einz != null || r.perf != null) {
+    const dr = depotRows().find(x => x.y === Y);
+    z.push([], ['Depot', 'Depotwert', csvZahl(r.depot), csvZahl(v.depot), csvZahl(diff(r.depot, v.depot))],
+      ['Depot', 'Netto-Einzahlungen', csvZahl(r.einz), csvZahl(v.einz), ''],
+      ['Depot', 'Rendite (%)', csvZahl(dr ? dr.pc : r.perf), '', '']);
+  }
+  z.push([], ['Exportiert am ' + heuteDE() + ' aus der Finanzübersicht']);
+  shareFile('finanzen-vermoegen-' + Y + '.csv', csvDatei(z), 'text/csv').then(ok => { if (ok) toast('Export ' + Y + ' erstellt'); });
+}
+function exportAlleJahre() {
+  const ys = Object.keys(S.years).map(Number).sort((a, b) => a - b);
+  if (!ys.length) return toast('Noch keine Jahreswerte erfasst');
+  const names = S.settings.names, dr = Object.fromEntries(depotRows().map(x => [x.y, x]));
+  const z = [['Finanzübersicht – Vermögen aller Jahre (Stand zum 31.12., laufendes Jahr = aktueller Stand)'], [], ['Person', 'Konto', ...ys.map(String)]];
+  names.forEach((nm, j) => {
+    const ks = kontenVon(j).filter(x => kontoJahre(x.id).length);
+    ks.forEach(x => z.push([nm, x.name + (x.zu ? ' (aufgelöst ' + x.zu + ')' : ''), ...ys.map(y => csvZahl(S.years[y].k?.[x.id]))]));
+    z.push([nm, ks.length ? 'Summe' : 'Gesamt', ...ys.map(y => csvZahl(S.years[y].w?.[j]))]);
+  });
+  z.push(['Alle', 'Vermögen gesamt', ...ys.map(y => csvZahl(wealthTotal(y)))]);
+  z.push([], ['Depot', 'Depotwert', ...ys.map(y => csvZahl(S.years[y].depot))],
+    ['Depot', 'Netto-Einzahlungen', ...ys.map(y => csvZahl(S.years[y].einz))],
+    ['Depot', 'Rendite (%)', ...ys.map(y => csvZahl(dr[y] ? dr[y].pc : S.years[y].perf))]);
+  z.push([], ['Exportiert am ' + heuteDE() + ' aus der Finanzübersicht']);
+  const d = new Date();
+  shareFile('finanzen-vermoegen-alle-jahre-' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '.csv', csvDatei(z), 'text/csv')
+    .then(ok => { if (ok) toast('Export erstellt'); });
 }
 
 /* Tabelle aus Excel / Numbers einfügen */
@@ -1366,6 +1497,36 @@ function renderSettings() {
   ziel.addEventListener('change', () => { const v = parseNum(ziel.value); if (v == null || Number.isNaN(v)) { ziel.value = inVal(st.ziel); return toast('Ungültiger Wert'); } st.ziel = v; persist(false); toast('Ziel gespeichert'); });
   persons.append(h('h3', { text: 'Ziele', style: 'margin:14px 0 4px' }), h('div', { class: 'field' }, h('label', { text: 'Sparquoten-Ziel' }), h('div', { class: 'inwrap' }, ziel, h('span', { class: 'unit', text: '%' }))));
   root.append(persons);
+
+  // Konten: anlegen, umbenennen, auflösen (ab einem Jahr ausblenden), löschen (nur ohne Werte)
+  const kcard = h('section', { class: 'card' }, h('h3', { text: 'Konten', style: 'margin-bottom:4px' }),
+    h('p', { class: 'note', style: 'margin-top:0', text: 'Unter Erfassen → Jahr trägst du je Konto den Stand ein, das Vermögen der Person ist die Summe. Aufgelöste Konten bleiben in den früheren Jahren erhalten.' }));
+  st.names.forEach((nm, j) => {
+    kcard.append(h('div', { class: 'phead', style: 'margin-top:12px' }, h('b', { text: nm })));
+    kontenVon(j).forEach(x => {
+      const jahre = kontoJahre(x.id);
+      const row = h('div', { class: 'krow' }, h('span', { class: 'kname' }, x.name, x.zu ? h('span', { class: 'muted small', text: ' · aufgelöst ab ' + x.zu }) : null),
+        h('button', { class: 'linkbtn', type: 'button', text: 'Umbenennen', onclick: async () => {
+          const v = await ask({ title: 'Konto umbenennen', fields: [{ label: 'Name des Kontos', value: x.name }], ok: 'Speichern', validate: v => v[0].trim() ? null : 'Bitte einen Namen eingeben.' });
+          if (v) { x.name = v[0].trim().slice(0, 40); persist(); renderSettings(); }
+        } }),
+        h('button', { class: 'linkbtn', type: 'button', text: x.zu ? 'Wieder aktiv' : 'Auflösen', onclick: async () => {
+          if (x.zu) { delete x.zu; persist(); return renderSettings(); }
+          const y0 = new Date().getFullYear();
+          const v = await ask({ title: x.name + ' auflösen', text: 'Ab welchem Jahr gibt es das Konto nicht mehr? In früheren Jahren bleiben die Werte stehen.', fields: [{ label: 'Jahr', value: String(y0), inputmode: 'numeric' }], ok: 'Auflösen',
+            validate: v => { const n = +(v[0].trim() || y0); return Number.isInteger(n) && n > 1990 && n < 2200 ? null : 'Bitte ein Jahr eingeben, z. B. ' + y0 + '.'; } });
+          if (v) { x.zu = +(v[0].trim() || y0); persist(); renderSettings(); }
+        } }),
+        h('button', { class: 'linkbtn danger', type: 'button', text: 'Löschen', onclick: async () => {
+          if (jahre.length) return ask({ title: 'Konto hat Werte', text: x.name + ' hat Werte in ' + jahre.join(', ') + '. Damit diese erhalten bleiben, das Konto lieber auflösen.', cancel: null });
+          if (!await ask({ title: x.name + ' löschen?', text: 'Das Konto hat noch keine Werte und wird entfernt.', ok: 'Löschen', danger: true })) return;
+          S.konten = S.konten.filter(k => k !== x); persist(); renderSettings();
+        } }));
+      kcard.append(row);
+    });
+    kcard.append(h('button', { class: 'linkbtn left', type: 'button', text: '+ Konto für ' + nm, onclick: async () => { if (await kontoAnlegen(j)) renderSettings(); } }));
+  });
+  root.append(kcard);
 
   // Sicherung
   root.append(h('section', { class: 'card' }, h('h3', { text: 'Sicherung', style: 'margin-bottom:6px' }),
@@ -1492,7 +1653,7 @@ async function wipeData() {
 function ask({ title, text, fields = [], ok = 'OK', cancel = 'Abbrechen', danger = false, validate = null }) {
   return new Promise(res => {
     const d = $('#dlg'); d.textContent = '';
-    const inputs = fields.map(f => h('input', { class: 'inp', type: f.type || 'text', placeholder: f.label, 'aria-label': f.label, autocomplete: f.ac || 'off' }));
+    const inputs = fields.map(f => h('input', { class: 'inp', type: f.type || 'text', placeholder: f.label, 'aria-label': f.label, autocomplete: f.ac || 'off', value: f.value, inputmode: f.inputmode }));
     const err = h('p', { class: 'err' });
     let busy = false;
     const done = v => { d.close(); res(v); };
@@ -1508,7 +1669,8 @@ function ask({ title, text, fields = [], ok = 'OK', cancel = 'Abbrechen', danger
       }
       done(fields.length ? vals : true);
     });
-    d.append(h('h3', { text: title }), text ? h('p', { text }) : null, inputs, fields.length ? err : null,
+    // ...inputs: append() wandelt ein Array sonst in Text um („[object HTMLInputElement]“)
+    d.append(h('h3', { text: title }), ...(text ? [h('p', { text })] : []), ...inputs, ...(fields.length ? [err] : []),
       h('div', { class: 'btnrow' }, cancel ? h('button', { class: 'btn ghost', type: 'button', text: cancel, onclick: () => done(null) }) : null, okB));
     d.oncancel = e => { e.preventDefault(); if (cancel) done(null); };
     inputs.forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); okB.click(); } }));
