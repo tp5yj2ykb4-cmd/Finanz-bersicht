@@ -234,7 +234,7 @@ dialog .btnrow { justify-content: flex-end; }
 /* ============================================================
    Grundlagen
    ============================================================ */
-const APP_VERSION = '1.8';
+const APP_VERSION = '1.8.1';
 const KEY = 'finanzen.v1', UIKEY = 'finanzen.ui', ITER = 310000;
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const MON_LONG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -1361,7 +1361,12 @@ function renderYearForm(root) {
 /* CSV-Export: Semikolon und Dezimalkomma (deutsches Excel/Numbers), UTF-8 mit BOM, damit
    Umlaute in Excel stimmen. Zahlen ohne Tausenderpunkt, damit sie als Zahl erkannt werden. */
 const csvZahl = v => v == null || !isFinite(v) ? '' : (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
-const csvFeld = s => { s = String(s ?? ''); return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+/* Text, der mit = + - @ beginnt, würde Excel als Formel ausführen: ein ' davor macht ihn zu Text (negative Zahlen bleiben Zahlen). */
+const csvFeld = s => {
+  s = String(s ?? '');
+  if (/^[=+\-@\t\r]/.test(s) && !/^-\d+(,\d+)?$/.test(s)) s = "'" + s;
+  return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
 const csvZeile = a => a.map(csvFeld).join(';');
 const csvDatei = zeilen => '﻿' + zeilen.map(csvZeile).join('\r\n') + '\r\n';
 const heuteDE = () => new Date().toLocaleDateString('de-DE');
